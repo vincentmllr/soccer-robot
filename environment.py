@@ -1,5 +1,6 @@
-import anki_vector
+import anki_vector, multiprocessing
 from anki_vector.util import degrees, Pose
+from anki_vector import opengl
 
 #Feldparameter
 field_length = 2000
@@ -79,6 +80,23 @@ with anki_vector.Robot() as robot:
     #robot.nav_map.NavMapComponent.close_nav_map_feed()
 
     #OpenGL Ansatz
+
+    ctx = multiprocessing.get_context('spawn')
+    close_event = ctx.Event()
+    input_intent_queue = ctx.Queue(maxsize=10)
+    nav_map_queue = ctx.Queue(maxsize=10)
+    world_frame_queue = ctx.Queue(maxsize=10)
+    extra_render_function_queue = ctx.Queue(maxsize=1)
+    user_data_queue = ctx.Queue()
+    process = ctx.Process(target=opengl.main,
+        args=(close_event,
+            input_intent_queue,
+            nav_map_queue,
+            world_frame_queue,
+            extra_render_function_queue,
+            user_data_queue),
+        daemon=True)
+    process.start()
 
     #Proximity
 
