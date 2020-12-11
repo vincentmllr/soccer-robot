@@ -1,6 +1,20 @@
 import anki_vector, multiprocessing, time
 from anki_vector.util import degrees, Pose
 
+class Map():
+    
+    def __init__(self)
+        self.robot = MapObject()
+        self.ball = MapObject()
+        self.enemy = MapObject()
+        self.goal_self = MapObject()
+        self.goal_enemy = MapObject()
+
+class MapObject():
+
+    def __init__(self)
+        pass
+
 #Feldparameter
 field_length = 2000
 field_width = 1000
