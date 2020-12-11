@@ -1,9 +1,10 @@
 import anki_vector, multiprocessing, time
 from anki_vector.util import degrees, Pose
-
+from anki_vector import behavior
+"""
 class Map():
     
-    def __init__(self)
+    def __init__(self):
         self.robot = MapObject()
         self.ball = MapObject()
         self.enemy = MapObject()
@@ -12,9 +13,20 @@ class Map():
 
 class MapObject():
 
-    def __init__(self)
-        pass
-
+    def __init__(tag, position_x, position_y, time, map):
+        self.tag = tag
+        self.position_x = position_x
+        self.position_y = position_y
+        self.moment = time
+        self.map = map
+        if tag == "enemy":
+            map.enemy = self
+        elif tag == "ball":
+            map.ball = self
+        elif tag == "goal_self":
+            map.goal_self
+        #[...]
+"""
 #Feldparameter
 field_length = 2000
 field_width = 1000
@@ -29,9 +41,44 @@ goal_height = 100
 position_start_x = 100
 position_start_y = 500
 
+IP_ADDRESS = '192.168.0.136'
+SERIAL = '008014c1'
 
-with anki_vector.Robot(enable_nav_map_feed=True, show_3d_viewer=True) as robot: #navmap für navmap und 3DViewer, 3dviewer für 3d viewer
 
+def main():
+
+    with anki_vector.Robot(enable_nav_map_feed=True) as robot:
+
+        robot.behavior.drive_off_charger()      
+
+
+
+
+    #with anki_vector.Robot(enable_nav_map_feed=True) as robot: #navmap für navmap und 3DViewer, 3dviewer für 3d viewer
+    #, show_3d_viewer=True
+    ##NavMap Ansatz
+    #anki_vector.nav_map.NavMapComponent.init_nav_map_feed(0.5)     #Initialisierung
+    #Test
+    print("+++Test für NavMap+++")
+    robot.behavior.drive_off_charger()
+    robot.motors.set_wheel_motors(-100,100)
+    latest_nav_map = robot.nav_map.latest_nav_map
+
+    content=latest_nav_map.get_content(0.0,100.0)
+    print(f"Sampling point at 0.0, 100.0 and found content: {content}")
+    size = latest_nav_map.size
+    print(f"Size: {size}")
+    print(f"Center:  {latest_nav_map.center}")
+
+    # for i in range(1, size):
+    #    for j in range(1,size):
+    #        node=latest_nav_map.get_node(float(i),float(j))
+    #        content=latest_nav_map.get_content(float(i),float(j))
+    #        node_content = node.content
+    #        print( "Blabla")#f"Node: {node} with Content: {content} and Node-Content: {node_content} at {i},{j}.")
+    
+    #robot.nav_map.NavMapComponent.close_nav_map_feed()     #Terminierung
+"""
     ##Vision
     robot.vision.enable_custom_object_detection #Können fixed objects betrachtet werden?
 
@@ -93,9 +140,9 @@ with anki_vector.Robot(enable_nav_map_feed=True, show_3d_viewer=True) as robot: 
             print(f"Node: {node} with Content: {content} and Node-Content: {node_content} at {i},{j}.")
     
     #robot.nav_map.NavMapComponent.close_nav_map_feed()     #Terminierung
-
+    
     ##OpenGL Ansatz (freeglut Defekt -> Funktioniert nicht)
-    """
+    
     ctx = multiprocessing.get_context('spawn')
     close_event = ctx.Event()
     input_intent_queue = ctx.Queue(maxsize=10)
@@ -112,8 +159,8 @@ with anki_vector.Robot(enable_nav_map_feed=True, show_3d_viewer=True) as robot: 
             user_data_queue),
         daemon=True)
     process.start()
-    """
-
+    
+    
     ##Proximity
     print("+++Proximity-Test:+++")
     proximity_data=robot.proximity.last_sensor_reading
@@ -146,4 +193,7 @@ with anki_vector.Robot(enable_nav_map_feed=True, show_3d_viewer=True) as robot: 
     time.sleep(10)
 
     robot.viewer_3d.close()
+"""
 
+if __name__ == "__main__":
+    main()
