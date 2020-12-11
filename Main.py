@@ -1,12 +1,25 @@
 import anki_vector
-import perception
-import gameplay
-import map
+#import perception
+#import action
+#import environment
 
 
 IP_ADDRESS = '192.#########'
 SERIAL = '008014c1'
 robot = anki_vector.robot
+
+def test():
+
+    args = anki_vector.util.parse_command_args()
+
+    with anki_vector.Robot(args.serial) as robot:
+        
+        robot.behavior.drive_off_charger()
+
+        robot.behavior.drive_on_charger()
+
+
+
 
 
 def main():
@@ -14,7 +27,7 @@ def main():
     map=map.Map()
     robot=anki_vector.Robot()
 
-    #Folgendes lieber als Methoden oder stattdessen eine Methode initialize()
+    #Folgendes lieber als Methoden falls es geht oder stattdessen eine Methode initialize()
     args = anki_vector.util.parse_command_args()
     with behavior.ReserveBehaviorControl(serial = SERIAL, ip=IP_ADDRESS):
         
@@ -30,8 +43,7 @@ def main():
                 
                 perception.detect_objects(robot, map)
                 action.play_ball(map)
-    
-
 
 if __name__ == "__main__":
-    main()
+    #main()
+    test()
