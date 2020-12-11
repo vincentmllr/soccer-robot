@@ -108,7 +108,7 @@ def predict_offline(model_filename, image_filename):
 
 #Class to define an object on the map with the name, coordinates and timestamp of the predicted picture
 
-def detect_object(robot, map, mode):
+def detect_object(robot, map, mode, image_filename):
     if mode == "online":
         predictor = PredictionCloud()
         t = time.time()
@@ -117,7 +117,7 @@ def detect_object(robot, map, mode):
         print('Duration:', elapsed)
     else:
         t = time.time()
-        predictions = predict_offline(model_filename, image_filename)
+        predictions = predict_offline(MODEL_FILENAME, image_filename)
         elapsed = time.time() - t
         print("Duration: ", elapsed)
 
