@@ -1,6 +1,5 @@
-import anki_vector, multiprocessing
+import anki_vector, multiprocessing, time
 from anki_vector.util import degrees, Pose
-from anki_vector import opengl
 
 #Feldparameter
 field_length = 2000
@@ -13,49 +12,52 @@ goal_width = 200
 goal_height = 100
 
 #Startposition
-start_x = 10
-start_y = 50
+position_start_x = 100
+position_start_y = 500
 
 
-with anki_vector.Robot() as robot:
+with anki_vector.Robot(enable_nav_map_feed=True, show_3d_viewer=True) as robot: #navmap für navmap und 3DViewer, 3dviewer für 3d viewer
+
+    ##Vision
+    robot.vision.enable_custom_object_detection #Können fixed objects betrachtet werden?
 
     ##World-Ansatz
 
     #Erstellt die Wände
     wall_left = robot.world.create_custom_fixed_object(
-        Pose(x=-start_x, y=start_y, z=0, angle_z=degrees(0)), 
+        Pose(x=-position_start_x, y=position_start_y, z=0, angle_z=degrees(0)), 
         x_size_mm=field_length, 
         y_size_mm=wall_thickness, 
         z_size_mm=field_height,
         relative_to_robot=True)
     wall_right = robot.world.create_custom_fixed_object(
-        Pose(x=-start_x, y=-start_y, z=0, angle_z=degrees(0)), 
+        Pose(x=-position_start_x, y=-position_start_y, z=0, angle_z=degrees(0)), 
         x_size_mm=field_length, 
         y_size_mm=wall_thickness, 
         z_size_mm=field_height,
         relative_to_robot=True)
     wall_self = robot.world.create_custom_fixed_object(
-        Pose(x=-start_x, y=-start_y, z=0, angle_z=degrees(90)), 
+        Pose(x=-position_start_x, y=-position_start_y, z=0, angle_z=degrees(90)), 
         x_size_mm=field_width, 
         y_size_mm=wall_thickness, 
         z_size_mm=field_height,
         relative_to_robot=True)
     wall_oponent = robot.world.create_custom_fixed_object(
-        Pose(x=-start_x, y=field_length-start_y, z=0, angle_z=degrees(90)), 
+        Pose(x=-position_start_x, y=field_length-position_start_y, z=0, angle_z=degrees(90)), 
         x_size_mm=field_width, 
         y_size_mm=wall_thickness, 
         z_size_mm=field_height,
         relative_to_robot=True)
 
     #Gibt Alle Objekte in der Welt aus
+    print("+++World-Test:+++")
     for obj in robot.world.all_objects:
         print(obj)
 
 
     ##NavMap Ansatz
 
-    #Initialisierung
-    anki_vector.nav_map.NavMapComponent.init_nav_map_feed(0.5)
+    anki_vector.nav_map.NavMapComponent.init_nav_map_feed(0.5)     #Initialisierung
 
     #Test
     print("+++Test für NavMap+++")
@@ -76,11 +78,10 @@ with anki_vector.Robot() as robot:
             node_content = node.content
             print(f"Node: {node} with Content: {content} and Node-Content: {node_content} at {i},{j}.")
     
-    #Terminierung
-    #robot.nav_map.NavMapComponent.close_nav_map_feed()
+    #robot.nav_map.NavMapComponent.close_nav_map_feed()     #Terminierung
 
-    #OpenGL Ansatz
-
+    ##OpenGL Ansatz (freeglut Defekt -> Funktioniert nicht)
+    """
     ctx = multiprocessing.get_context('spawn')
     close_event = ctx.Event()
     input_intent_queue = ctx.Queue(maxsize=10)
@@ -97,12 +98,38 @@ with anki_vector.Robot() as robot:
             user_data_queue),
         daemon=True)
     process.start()
+    """
 
-    #Proximity
+    ##Proximity
+    print("+++Proximity-Test:+++")
+    proximity_data=robot.proximity.last_sensor_reading
+    if proximity_data is not None:
+        print('Proximity distance: {0}' .format(proximity_data))
+        print(proximity_data.distance)
+        print(proximity_data.found_object)
+        print(proximity_data.is_lift_in_fov)
+        print(proximity_data.signal_quality)
+        print(proximity_data.unobstructed)
 
-    #Touch
 
-    #Vision
+    ##Touch
+    #Beim Zurückstellen so berühren,
+    #dass man unterschiedliche Modi einstellt (nicht Sinn der Sache)
 
-    #Viewer3DComponent
+    #Roboter legen selbst fest, welches Tor wem gehört und wechseln Seite automatisch
+
+    ##Viewer3DComponent
+
+    robot.viewer_3d.show()
+    print("+++Viewer3D-Test:+++")
+    #Test: Zeichne Punkt in World Origin, Geht ohne freeglut?
+    def render_function(user_data_queue):
+        glBegin(GL_POINTS)
+        glVertex3f(0, 0, 0)
+        #glEnd()
+
+    robot.viewer_3d.add_render_call(render_function)
+    time.sleep(10)
+
+    robot.viewer_3d.close()
 
