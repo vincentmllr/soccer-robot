@@ -1,6 +1,10 @@
 import anki_vector
 from anki_vector import behavior, connection
 #import perception
+from anki_vector.util import *
+
+import support_functions as sf
+import perception
 #import action
 import environment as env
 
@@ -15,9 +19,10 @@ def test():
 
     while True:
 
-        robot.behavior.drive_off_charger()
-
-        robot.behavior.drive_on_charger()
+    with anki_vector.Robot(args.serial) as robot:
+        
+        robot.behavior.set_head_angle(degrees(0))
+        sf.drive_to_ball(robot)
 
         robot.disconnect()
 

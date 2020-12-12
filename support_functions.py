@@ -1,4 +1,7 @@
 import anki_vector
+import perception
+from anki_vector.util import *
+import io
 
 #Returns Distance of Object in front of Vector
 def distance(robot):
@@ -17,9 +20,25 @@ def distance(robot):
 def CustomDetection(robot):
     robot.enable_custom_object_detection(true)
 
-def take_picture(robot):
+def take_picture_to_byte(robot):
     image = robot.camera.capture_single_image().raw_image
-    return image
+
+    with io.BytesIO() as output:
+        image.save(output, 'BMP')
+        image_as_bytes = output.getvalue()
+
+    return image_as_bytes
+
+
+def drive_to_ball(robot):
+    pic = take_picture_to_byte(robot)
+    poi = perception.detect_object(robot, "online", pic)
+    if poi > 0.5:
+        robot.behavior.turn_in_place(degrees(60-(poi*2)*60))
+    elif poi < 0.5:
+        robot.behavior.turn_in_place(degrees((poi-0.5) * -60))
+    robot.behavior.drive_straight(distance_mm(100), speed_mmps(100))
+
 
     
 
