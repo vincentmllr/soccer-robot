@@ -36,14 +36,16 @@ class PredictionCloud():
 
         
     def prediction(self, image):
-        with open(image, mode="rb") as prediction_image:
-            prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, prediction_image)
+        
+        prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
 
         # Display the results.
         for prediction in prediction_results.predictions:
             print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
                 prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
-
+                
+            if prediction.probability > 0.4:
+                return float(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)
             #Add Field Objects onto the virtual map
 
             # Überlegung: Box Left + 0.5* width = Mittelpunkt des Balls
@@ -58,6 +60,7 @@ class PredictionCloud():
             #         estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
             #         estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
             #         FO = field_object(ball, estimated_x, estimated_y, time.time())
+            #         
 
             # if prediciton.tag_name == 'Ball':
             #     if prediction.probability > 0.4:
@@ -108,13 +111,14 @@ def predict_offline(model_filename, image_filename):
 
 #Class to define an object on the map with the name, coordinates and timestamp of the predicted picture
 
-def detect_object(robot, map, mode, image_filename):
+def detect_object(robot, mode, image_filename):
     if mode == "online":
         predictor = PredictionCloud()
         t = time.time()
-        predictor.prediction(image_filename)
+        result = predictor.prediction(image_filename)
         elapsed = time.time() - t
         print('Duration:', elapsed)
+        return result
     else:
         t = time.time()
         predictions = predict_offline(MODEL_FILENAME, image_filename)
