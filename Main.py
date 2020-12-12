@@ -1,48 +1,42 @@
 import anki_vector
+from anki_vector import behavior, connection
 #import perception
 #import action
-#import environment
+import environment as env
 
-
-IP_ADDRESS = '192.#########'
-SERIAL = '008014c1'
-robot = anki_vector.robot
+NAME = "Vector-N8G2"
+IP = "192.168.0.189"
+SERIAL = "008014c1"
 
 def test():
 
-    args = anki_vector.util.parse_command_args()
+    robot = anki_vector.Robot(serial = SERIAL)
+    robot.connect()
 
-    with anki_vector.Robot(args.serial) as robot:
-        
+    while True:
+
         robot.behavior.drive_off_charger()
 
         robot.behavior.drive_on_charger()
 
-
-
+        robot.disconnect()
 
 
 def main():
 
-    map=map.Map()
-    robot=anki_vector.Robot()
+    environment = env.Environment()
+    robot = anki_vector.Robot(serial = SERIAL)
+    robot.connect()
 
-    #Folgendes lieber als Methoden falls es geht oder stattdessen eine Methode initialize()
-    args = anki_vector.util.parse_command_args()
-    with behavior.ReserveBehaviorControl(serial = SERIAL, ip=IP_ADDRESS):
-        
+    with behavior.ReserveBehaviorControl(serial= SERIAL):
 
+        while True:
 
-        with anki_vector.Robot(serial = SERIAL,
-                                name='Vector-N8G2',
-                                ip=IP_ADDRESS,
-                                behavior_control_level=ControlPriorityLevel.OVERRIDE_BEHAVIORS_PRIORITY
-                                ) as robot:
-            
-            while True:
-                
-                perception.detect_objects(robot, map)
-                action.play_ball(map)
+            #perception.detect_objects(robot, environment)
+            #action.play_ball(robot, environment)
+
+    robot.disconnect()
+
 
 if __name__ == "__main__":
     #main()
