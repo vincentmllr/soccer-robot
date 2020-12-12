@@ -1,5 +1,8 @@
 import anki_vector
-#import perception
+from anki_vector.util import *
+
+import support_functions as sf
+import perception
 #import action
 #import environment
 
@@ -14,9 +17,8 @@ def test():
 
     with anki_vector.Robot(args.serial) as robot:
         
-        robot.behavior.drive_off_charger()
-
-        robot.behavior.drive_on_charger()
+        robot.behavior.set_head_angle(degrees(0))
+        sf.drive_to_ball(robot)
 
 
 
