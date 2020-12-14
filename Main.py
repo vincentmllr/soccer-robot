@@ -1,10 +1,8 @@
 import anki_vector
 from anki_vector import behavior, connection
-#import perception
 from anki_vector.util import *
-
 import support_functions as sf
-import perception
+#import perception
 #import action
 import environment as env
 
@@ -16,15 +14,14 @@ def test():
 
     robot = anki_vector.Robot(serial = SERIAL)
     robot.connect()
-
-    while True:
-
-    with anki_vector.Robot(args.serial) as robot:
+    robot.behavior.set_eye_color(0.05, 1.0) #Augenfarbe orange
         
+    with behavior.ReserveBehaviorControl(serial= SERIAL):
+
         robot.behavior.set_head_angle(degrees(0))
         sf.drive_to_ball(robot)
 
-        robot.disconnect()
+    robot.disconnect()
 
 
 def main():
@@ -36,6 +33,8 @@ def main():
     with behavior.ReserveBehaviorControl(serial= SERIAL):
 
         while True:
+
+            robot.behavior.drive_off_charger()
 
             #perception.detect_objects(robot, environment)
             #action.play_ball(robot, environment)
