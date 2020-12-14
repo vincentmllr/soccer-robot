@@ -37,7 +37,11 @@ def drive_to_ball(robot):
         robot.behavior.turn_in_place(degrees(45-(poi*2)*45))
     elif poi < 0.5:
         robot.behavior.turn_in_place(degrees((poi-0.5) * -45))
-    robot.behavior.drive_straight(distance(robot), speed_mmps(100))
+    dist = distance(robot)
+    if dist ist not None:
+        robot.behavior.drive_straight(dist, speed_mmps(100))
+    else:
+        robot.behavior.drive_straight(distance_mm(300), speed_mmps(100))
 
 
     
