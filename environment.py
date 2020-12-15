@@ -10,21 +10,21 @@ class Environment():
     """Representation of vectors environment/ the soccer field with all its objects.
     """
 
-    field_length_x = 2000.0
-    field_length_y = 1000.0
-    field_height = 150.0
-    wall_thickness = 10.0
-    goal_width = 200.0
-    goal_height = 100.0
-    position_start_x = 100.0
-    position_start_y = 500.0
+    FIELD_LENGTH_X = 2000.0
+    FIELD_LENGTH_Y = 1000.0
+    field_height = 150.0 #Nicht benutzt
+    wall_thickness = 10.0 #Nicht benutzt
+    goal_width = 200.0 #Nicht benutzt
+    goal_height = 100.0 #Nicht benutzt
+    POSITION_START_X = 100.0
+    POSITION_START_Y = 500.0
     
     def __init__(self):
-        self.self = EnvironmentObject("Self", self.position_start_x, self.position_start_y, degrees(0), 0, self)
-        self.ball = EnvironmentObject("Ball", (self.field_length_x)/2, self.position_start_y, degrees(0), 0, self)
-        self.enemy = EnvironmentObject("Enemy", self.field_length_x-self.position_start_x, self.position_start_y, degrees(0), 0, self)
-        self.goal_self = EnvironmentObject("Goal_self", 0, self.position_start_y, degrees(0), 0, self)
-        self.goal_enemy = EnvironmentObject("Goal_enemy", self.field_length_x, self.position_start_y, degrees(0), 0, self)
+        self.self = EnvironmentObject("Self", self.POSITION_START_X, self.POSITION_START_Y, degrees(0), 0, self)
+        self.ball = EnvironmentObject("Ball", (self.FIELD_LENGTH_X)/2, self.POSITION_START_Y, degrees(0), 0, self)
+        self.enemy = EnvironmentObject("Enemy", self.FIELD_LENGTH_X-self.POSITION_START_X, self.POSITION_START_Y, degrees(0), 0, self)
+        self.goal_self = EnvironmentObject("Goal_self", 0, self.POSITION_START_Y, degrees(0), 0, self)
+        self.goal_enemy = EnvironmentObject("Goal_enemy", self.FIELD_LENGTH_X, self.POSITION_START_Y, degrees(0), 0, self)
 
     def environment_update(self):
         '''Returns a list of all the objects on the map in the following order: Self, ball, enemy, goal_enemy, goal_self as EnvironmentObjects
@@ -36,8 +36,8 @@ class EnvironmentObject():
 
     def __init__(self, tag, position_x, position_y, rotation, time, environment):
         self.tag = tag
-        self.position_x = position_x
-        self.position_y = position_y
+        self.position_x = position_x  - environment.POSITION_START_X
+        self.position_y = position_y - environment.POSITION_START_Y
         self.rotation = rotation #in Grad
         self.moment = time
         self.environment = environment
@@ -51,25 +51,25 @@ def test_custom_object(robot, environment):
     print("+++CustomObject-Test+++")
     #Erstellt die Wände
     wall_left = robot.world.create_custom_fixed_object(
-        Pose(x=-environment.position_start_x, y=environment.position_start_y, z=0, angle_z=degrees(0)), 
+        Pose(x=-environment.POSITION_START_X, y=environment.POSITION_START_Y, z=0, angle_z=degrees(0)), 
         x_size_mm=environment.field_length, 
         y_size_mm=environment.wall_thickness, 
         z_size_mm=environment.field_height,
         relative_to_robot=True)
     wall_right = robot.world.create_custom_fixed_object(
-        Pose(x=-environment.position_start_x, y=-environment.position_start_y, z=0, angle_z=degrees(0)), 
+        Pose(x=-environment.POSITION_START_X, y=-environment.POSITION_START_Y, z=0, angle_z=degrees(0)), 
         x_size_mm=environment.field_length, 
         y_size_mm=environment.wall_thickness, 
         z_size_mm=environment.field_height,
         relative_to_robot=True)
     wall_self = robot.world.create_custom_fixed_object(
-        Pose(x=-environment.position_start_x, y=-environment.position_start_y, z=0, angle_z=degrees(90)), 
+        Pose(x=-environment.POSITION_START_X, y=-environment.POSITION_START_Y, z=0, angle_z=degrees(90)), 
         x_size_mm=environment.field_width, 
         y_size_mm=environment.wall_thickness, 
         z_size_mm=environment.field_height,
         relative_to_robot=True)
     wall_oponent = robot.world.create_custom_fixed_object(
-        Pose(x=-environment.position_start_x, y=environment.field_length-environment.position_start_y, z=0, angle_z=degrees(90)), 
+        Pose(x=-environment.POSITION_START_X, y=environment.field_length-environment.POSITION_START_Y, z=0, angle_z=degrees(90)), 
         x_size_mm=environment.field_width, 
         y_size_mm=environment.wall_thickness, 
         z_size_mm=environment.field_height,
@@ -94,26 +94,28 @@ def test_proximity(robot,environment):
 
 def test_general(robot, environment):
     print("Grundtest gestartet")
+    test_done = False
     print("Fahre zum Startpunkt...")
     robot.behavior.go_to_pose(environment.self.pose(), False, 3)
-    while robot.accel != 0 :
-        print("Beim Startpunkt (" + robot.pose + ") angekommen.")
+    while robot.accel != 0 & test_done == False :
+        print(f"Beim Startpunkt ({robot.pose.to_matrix().pos_xyz[0]},{robot.pose.to_matrix().pos_xyz[1]}) angekommen.")
         print("Fahre zum Ball...")
         robot.behavior.go_to_pose(environment.ball.pose(), False, 3)
-        while robot.accel != 0:
-            print("Beim Ball (" + robot.pose + ") angekommen.")
+        while robot.accel != 0 & test_done == False :
+            print(f"Beim Ball ({robot.pose.to_matrix().pos_xyz[0]},{robot.pose.to_matrix().pos_xyz[1]}) angekommen.")
             print("Fahre zum Gegner...")
             robot.behavior.go_to_pose(environment.enemy.pose(), False, 3)
-            while robot.accel != 0:
-                print("Beim Gegner (" + robot.pose + ") angekommen.")
+            while robot.accel != 0 & test_done == False :
+                print(f"Beim Gegner ({robot.pose.to_matrix().pos_xyz[0]},{robot.pose.to_matrix().pos_xyz[1]}) angekommen.")
                 print("Fahre zum eigenen Tor...")
                 robot.behavior.go_to_pose(environment.goal_self.pose(), False, 3)
-                while robot.accel != 0:
-                    print("Beim eigenen Tor (" + robot.pose + ") angekommen.")
+                while robot.accel != 0 & test_done == False :
+                    print(f"Beim eigenen Tor ({robot.pose.to_matrix().pos_xyz[0]},{robot.pose.to_matrix().pos_xyz[1]}) angekommen.")
                     print("Fahre zum gegenerischen Tor...")
                     robot.behavior.go_to_pose(environment.goal_enemy.pose(), False, 3)
-                    while robot.accel != 0:
-                        print("Beim gegnerischen Tor (" + robot.pose + ") angekommen.")
+                    while robot.accel != 0 & test_done == False :
+                        print(f"Beim gegnerischen Tor ({robot.pose.to_matrix().pos_xyz[0]},{robot.pose.to_matrix().pos_xyz[1]}) angekommen.")
+                        test_done = True
 
     #print("+++Winkelformatvergleich+++")
     #print("Angle(): " + anki_vector.util.Angle(degrees=0))
