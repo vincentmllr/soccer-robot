@@ -26,8 +26,9 @@ def test():
 
 def main():
 
-    environment = env.Environment()
     robot = anki_vector.Robot(serial = SERIAL)
+    environment = env.Environment(robot)
+
     robot.connect()
 
     with behavior.ReserveBehaviorControl(serial= SERIAL):
