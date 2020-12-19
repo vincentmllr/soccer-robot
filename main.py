@@ -27,7 +27,7 @@ def test():
 def main():
 
     robot = anki_vector.Robot(serial = SERIAL)
-    environment = env.Environment(robot, field_length_x=2000.0, field_length_y=1000.0, position_start_x=100.0, position_start_y=500.0)
+    environment = env.Environment(robot, field_length_x=2000.0, field_length_y=1000.0, goal_width=200.0, ball_diameter=40.0, position_start_x=100.0, position_start_y=500.0)
 
     robot.connect()
 
