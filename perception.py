@@ -14,12 +14,13 @@ import argparse
 import tensorflow as tf
 import numpy as np
 
+import environment
 
-IMAGE_FILENAME = 'Ball14cm.png'
 MODEL_FILENAME = 'model_s1.pb'
 LABELS_FILENAME = 'labels.txt'
 
 
+# Predictionclass for online prediction with Azure Custom Vision
 class PredictionCloud():
 
 
@@ -35,44 +36,61 @@ class PredictionCloud():
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
         
-    def prediction(self, image):
+    def prediction(self, image, picture_timestamp, environment):
         
         prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
+        found_ball = False
+        found_vector = False
 
         # Display the results.
+        counter = 0
         for prediction in prediction_results.predictions:
+            counter = counter + 1
             print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
                 prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
                 
-            if prediction.probability > 0.4:
-                return float(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)
-            #Add Field Objects onto the virtual map
+            # if prediction.probability > 0.4:
+            #     return float(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)
+           
 
-            # Überlegung: Box Left + 0.5* width = Mittelpunkt des Balls
+            # TODO Anpassen der Abstandsschätzung
 
-            # if prediciton.tag_name == 'Vector':
-            #     if prediction.probability > 0.4:
-            #         estimated_distance = 3 - prediction.bounding_box.height * 10
-            #         if estimated_distance < 100:
-            #             object_distance = distance(robot)
-            #             if object_distance is not None:
-            #                 estimated_distance = object_distance
-            #         estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
-            #         estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
-            #         FO = field_object(ball, estimated_x, estimated_y, time.time())
-            #         
+            if prediciton.tag_name == 'Vector' and found_vector == False:
+                if prediction.probability > 0.4:
+                    estimated_distance = prediction.bounding_box.height * 15
+                    if estimated_distance < 100:
+                        object_distance = distance(robot)
+                        if object_distance is not None:
+                            estimated_distance = object_distance
+                    estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
+                    estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
+                    environment._enemy._position_x = estimated_x
+                    environment._enemy._position_x = estimated_y
+                    environment._enemy._last_seen = picture_timestamp
+                    found_ball = True
+                    print("Vector detected. Estimated position: " + estimated_x + ", " + estimated_y + ". Timestamp: " + picture_timestamp)
+                    
 
-            # if prediciton.tag_name == 'Ball':
-            #     if prediction.probability > 0.4:
-            #         estimated_distance = 3 - prediction.bounding_box.height * 10
-            #         if estimated_distance < 100:
-            #             object_distance = distance(robot)
-            #             if object_distance is not None:
-            #                 estimated_distance = object_distance
-            #         estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
-            #         estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
-            #         FO = field_object(ball, estimated_x, estimated_y, time.time())
+            if prediciton.tag_name == 'Ball' and found_ball == False:
+                if prediction.probability > 0.4:
+                    estimated_distance = prediction.bounding_box.height * 30.00391
+                    if estimated_distance < 100 or  prediction.bounding_box.height + 0.1 < prediction.bounding_box.width:
+                        object_distance = distance(robot)
+                        if object_distance is not None:
+                            estimated_distance = object_distance
+                    estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
+                    estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
+                    environment._ball._position_x = estimated_x
+                    environment._ball._position_x = estimated_y
+                    environment._ball._last_seen = picture_timestamp
+                    found_ball = True
+                    print("Ball detected. Estimated position: " + estimated_x + ", " + estimated_y + ". Timestamp: " + picture_timestamp)
 
+            if counter >= 4:
+                break
+
+
+# Predictionclass for offline prediction with Tensorflow
 class PredictionTF():
     INPUT_TENSOR_NAME = 'image_tensor:0'
     OUTPUT_TENSOR_NAMES = ['detected_boxes:0', 'detected_scores:0', 'detected_classes:0']
@@ -90,7 +108,7 @@ class PredictionTF():
         with tf.compat.v1.Session(graph=self.graph) as sess:
             self.input_shape = sess.graph.get_tensor_by_name(self.INPUT_TENSOR_NAME).shape.as_list()[1:3]
 
-    def predict_image(self, image):
+    def predict_image(self, image, picture_timestamp, environment):
         image = image.convert('RGB') if image.mode != 'RGB' else image
         image = image.resize(self.input_shape)
 
@@ -102,20 +120,22 @@ class PredictionTF():
 
   
 
-#Class to define an object on the map with the name, coordinates and timestamp of the predicted picture
 
-def detect_object(robot, mode, image_filename):
+def detect_object(robot, mode, environment):
     if mode == "online":
         predictor = PredictionCloud()
         t = time.time()
-        result = predictor.prediction(image_filename)
+        image = sf.take_picture_to_byte(robot)
+        result = predictor.prediction(image ,t, environment)
         elapsed = time.time() - t
         print('Duration:', elapsed)
         return result
     else:
+        
         t = time.time()
         od_model = PredictionTF(model_filename)
-        image = PIL.Image.open(image_filename)
+        image = robot.camera.latest_image.raw_image()
+        image = PIL.Image.open(image_filename, t, environment)
         result = od_model.predict_image(image)
         elapsed = time.time() - t
         print("Duration: ", elapsed)
