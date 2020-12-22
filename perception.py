@@ -134,7 +134,7 @@ def detect_object(robot, mode, environment):
         
         t = time.time()
         od_model = PredictionTF(model_filename)
-        image = robot.camera.latest_image.raw_image()
+        image = robot.camera.latest_image.raw_image
         image = PIL.Image.open(image_filename, t, environment)
         result = od_model.predict_image(image)
         elapsed = time.time() - t
