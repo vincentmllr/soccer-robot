@@ -73,7 +73,7 @@ class PredictionCloud():
             #         estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
             #         FO = field_object(ball, estimated_x, estimated_y, time.time())
 
-class ObjectDetection:
+class PredictionTF():
     INPUT_TENSOR_NAME = 'image_tensor:0'
     OUTPUT_TENSOR_NAMES = ['detected_boxes:0', 'detected_scores:0', 'detected_classes:0']
 
@@ -100,13 +100,6 @@ class ObjectDetection:
             outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
             return outputs
 
-
-def predict_offline(model_filename, image_filename):
-    print("Image Filename", image_filename)
-    od_model = ObjectDetection(model_filename)
-
-    image = PIL.Image.open(image_filename)
-    return od_model.predict_image(image)
   
 
 #Class to define an object on the map with the name, coordinates and timestamp of the predicted picture
@@ -121,7 +114,9 @@ def detect_object(robot, mode, image_filename):
         return result
     else:
         t = time.time()
-        predictions = predict_offline(MODEL_FILENAME, image_filename)
+        od_model = PredictionTF(model_filename)
+        image = PIL.Image.open(image_filename)
+        result = od_model.predict_image(image)
         elapsed = time.time() - t
         print("Duration: ", elapsed)
 
