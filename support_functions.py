@@ -18,7 +18,7 @@ def distance(robot):
 
                     
 def CustomDetection(robot):
-    robot.enable_custom_object_detection(true)
+    robot.enable_custom_object_detection(True)
 
 def take_picture_to_byte(robot):
     image = robot.camera.capture_single_image().raw_image
@@ -29,10 +29,9 @@ def take_picture_to_byte(robot):
 
     return image_as_bytes
 
-
+#Nicht mit der aktuellen perception und environment version kompatibel
 def drive_to_ball(robot):
-    pic = take_picture_to_byte(robot)
-    poi = perception.detect_object(robot, "online", pic)
+    poi = perception.detect_object(robot, "online")
     if poi > 0.5:
         robot.behavior.turn_in_place(degrees(45-(poi*2)*45))
     elif poi < 0.5:
