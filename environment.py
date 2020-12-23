@@ -39,7 +39,7 @@ class Environment():
         self._ball = EnvironmentObject('Ball',
                                        self._BALL_DIAMETER,
                                        self._BALL_DIAMETER,
-                                       (self._FIELD_LENGTH_Y)/2,
+                                       (self._FIELD_LENGTH_X)/2,
                                        self._POSITION_START_Y,
                                        degrees(0), 0, self)
         self._enemy = EnvironmentObject('Enemy',
@@ -76,8 +76,8 @@ class Environment():
         if self._robot is None:
             return self._self
         else:
-            position_x = self._robot.pose.to_matrix.pos_xyz[0]
-            position_y = self._robot.pose.to_matrix.pos_xyz[1]
+            position_x = self._robot.pose.to_matrix().pos_xyz[0]
+            position_y = self._robot.pose.to_matrix().pos_xyz[1]
             rotation = self._robot.pose_angle_rad
             self._self.position_x = position_x - self._POSITION_START_X
             self._self.position_y = position_y - self._POSITION_START_Y
@@ -130,8 +130,8 @@ class EnvironmentObject():
 
     def pose(self):
         if self._tag == 'Self':
-            self.position_x = self._environment.robot.pose.to_matrix.pos_xyz[0] - self._environment._POSITION_START_X
-            self.position_y = self._environment.robot.pose.to_matrix.pos_xyz[1] - self._environment._POSITION_START_Y
+            self.position_x = self._environment.robot.pose.to_matrix().pos_xyz[0] - self._environment._POSITION_START_X
+            self.position_y = self._environment.robot.pose.to_matrix().pos_xyz[1] - self._environment._POSITION_START_Y
             self.rotation = self._environment.robot.pose_angle_rad
             print(f'Updated {self._tag} position.')
             return Pose(x=self.position_x,
@@ -216,6 +216,7 @@ class EnvironmentViewer:
         GREY = (30, 30, 30)
         BLACK = (0, 0, 0)
         WHITE = (155, 155, 155)
+        ORANGE = (209, 134, 0)
         frames_per_second = 25
         window_width = self.scale(self._environment.field_length_y)
         window_height = self.scale(self._environment.field_length_x)
@@ -248,12 +249,19 @@ class EnvironmentViewer:
                          self.scale(self._environment.enemy.position_x-self._environment.enemy.size_x*0.2),
                          self.scale(self._environment.enemy.size_y),
                          self.scale(self._environment.enemy.size_x))
+            pygame.draw.circle(window,
+                               ORANGE,
+                               (self.scale(self._environment.ball.position_y),
+                                self.scale(self._environment.ball.position_x)),
+                               self.scale(self._environment.ball.size_x/2))
             pygame.draw.rect(window, WHITE, vector)
-            pygame.draw.rect(window, BLACK, enemy )
+            pygame.draw.rect(window, BLACK, enemy)
+            pygame.draw.polygon(window, ORANGE, [(window_height/2, window_width/2-10), (window_height/2, window_width/2+10), (window_height/2-20, window_width/2)])
 
             if help is not True:
                 print(f'Painted Vector at {self._environment.self.position_x},{self._environment.self.position_y}')
                 print(f'Painted Enemy at {self._environment.enemy.position_x},{self._environment.enemy.position_y}')
+                print(f'Painted Ball at {self._environment.ball.position_x},{self._environment.ball.position_y}')
                 help = True
 
             pygame.display.update()
