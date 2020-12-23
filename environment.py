@@ -76,9 +76,9 @@ class Environment():
         if self._robot is None:
             return self._self
         else:
-            position_x = self.robot.pose.position.to_matrix.pos_xyz[0]
-            position_y = self.robot.pose.position.to_matrix.pos_xyz[1]
-            rotation = self.robot.pose_angle_rad
+            position_x = self._robot.pose.to_matrix.pos_xyz[0]
+            position_y = self._robot.pose.to_matrix.pos_xyz[1]
+            rotation = self._robot.pose_angle_rad
             self._self.position_x = position_x - self._POSITION_START_X
             self._self.position_y = position_y - self._POSITION_START_Y
             self._self.rotation = rotation
@@ -130,8 +130,8 @@ class EnvironmentObject():
 
     def pose(self):
         if self._tag == 'Self':
-            self.position_x = self._environment.robot.pose.position.to_matrix.pos_xyz[0] - self._environment._POSITION_START_X
-            self.position_y = self._environment.robot.pose.position.to_matrix.pos_xyz[1] - self._environment._POSITION_START_Y
+            self.position_x = self._environment.robot.pose.to_matrix.pos_xyz[0] - self._environment._POSITION_START_X
+            self.position_y = self._environment.robot.pose.to_matrix.pos_xyz[1] - self._environment._POSITION_START_Y
             self.rotation = self._environment.robot.pose_angle_rad
             print(f'Updated {self._tag} position.')
             return Pose(x=self.position_x,
