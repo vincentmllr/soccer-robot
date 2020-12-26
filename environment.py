@@ -210,16 +210,17 @@ class EnvironmentViewer:
 
     def scale(self, value):
         return int(value/3)
-
     def show(self):
 
-        GREY = (30, 30, 30)
+        GREY_DARK = (30, 30, 30)
+        GREY_LIGHT = (50,50,50)
         BLACK = (0, 0, 0)
         WHITE = (155, 155, 155)
         ORANGE = (209, 134, 0)
         frames_per_second = 25
-        window_width = self.scale(self._environment.field_length_y)
-        window_height = self.scale(self._environment.field_length_x)
+        edge = 4
+        window_width = self.scale(self._environment.field_length_y) + 2*edge
+        window_height = self.scale(self._environment.field_length_x) + 2*edge
 
         pygame.init()
         pygame.mixer.init()
@@ -231,8 +232,11 @@ class EnvironmentViewer:
         help = False
 
         while not quit:
-            window.fill(GREY)
             # TODO Feld designen mit draw.Rect()
+            line_thickness = 2
+            window.fill(GREY_DARK)
+            pygame.draw.circle(window, GREY_LIGHT, (window_width/2, window_height/2), window_width/6, line_thickness)
+            pygame.draw.lines(window, GREY_LIGHT, True, [(edge, edge), (edge, window_height-edge), (window_width-edge, window_height-edge), (window_width-edge, edge)], line_thickness)
             keyspressed = pygame.key.get_pressed()
             for event in pygame.event.get():
                 print(event)
@@ -241,22 +245,22 @@ class EnvironmentViewer:
             if keyspressed[ord("a")]:
                 quit = True
 
-            vector = Rect(self.scale(self._environment.self.position_y-self._environment.self.size_y/2),
-                          self.scale(self._environment.self.position_x-self._environment.self.size_x*0.8),
+            vector = Rect(self.scale(self._environment.self.position_y-self._environment.self.size_y/2) + edge,
+                          self.scale(self._environment.self.position_x-self._environment.self.size_x*0.8) + edge,
                           self.scale(self._environment.self.size_y),
                           self.scale(self._environment.self.size_x))
-            enemy = Rect(self.scale(self._environment.enemy.position_y-self._environment.enemy.size_y/2),
-                         self.scale(self._environment.enemy.position_x-self._environment.enemy.size_x*0.2),
+            enemy = Rect(self.scale(self._environment.enemy.position_y-self._environment.enemy.size_y/2) + edge,
+                         self.scale(self._environment.enemy.position_x-self._environment.enemy.size_x*0.2) + edge,
                          self.scale(self._environment.enemy.size_y),
                          self.scale(self._environment.enemy.size_x))
             pygame.draw.circle(window,
                                ORANGE,
-                               (self.scale(self._environment.ball.position_y),
-                                self.scale(self._environment.ball.position_x)),
+                               (self.scale(self._environment.ball.position_y) + edge,
+                                self.scale(self._environment.ball.position_x) + edge),
                                self.scale(self._environment.ball.size_x/2))
             pygame.draw.rect(window, WHITE, vector)
-            pygame.draw.rect(window, BLACK, enemy)
-            pygame.draw.polygon(window, ORANGE, [(window_height/2, window_width/2-10), (window_height/2, window_width/2+10), (window_height/2-20, window_width/2)])
+            pygame.draw.rect(window, WHITE, enemy)
+            #pygame.draw.polygon(window, ORANGE, [(window_width/2, window_height/2-10), (window_width/2, window_height/2+10), (window_width/2-20, window_height/2)])
 
             if help is not True:
                 print(f'Painted Vector at {self._environment.self.position_x},{self._environment.self.position_y}')
