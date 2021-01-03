@@ -291,6 +291,6 @@ def detect_ball(robot, environment):
     bt.start_tracking(robot, environment)
 
 
-if __name__ == "__main__":
+
     
     
