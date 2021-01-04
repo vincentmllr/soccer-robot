@@ -304,6 +304,7 @@ def detect_ball(robot, environment):
     bt.start_tracking(robot, environment)
 
 
+<<<<<<< HEAD
 if __name__ == "__main__":
     args = anki_vector.util.parse_command_args()
     with anki_vector.Robot(args.serial) as robot:
@@ -320,4 +321,8 @@ if __name__ == "__main__":
         robot.behavior.set_head_angle(degrees(0))
         
         detect_ball(robot, environment)
+=======
+
+    
+>>>>>>> 16beecd0831cb59d2d75e5b6ab93824908b9c9e2
     
