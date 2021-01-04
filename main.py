@@ -23,7 +23,7 @@ def main():
                                       ball_diameter=40.0,
                                       position_start_x=100.0,
                                       position_start_y=500.0,
-                                      enable_environment_viewer=False)
+                                      enable_environment_viewer=True)
         print("Zum Starten Enter drücken")
         detect_ball_Thread = threading.Thread(target=perception.detect_ball, args=[robot, env])
         robot.behavior.set_head_angle(degrees(0))
@@ -33,12 +33,12 @@ def main():
         wait_until_enter = input()
         robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
         print("Goooooo")
-        print("postion anfang: ", env.self.position_x)
-        print("postion anfang: ", env.self.position_y)
+        print("x-postion anfang: ", env.self.position_x)
+        print("y-postion anfang: ", env.self.position_y)
         robot.behavior.drive_straight(distance_mm(50), speed_mmps(500))
-        #action.look_for_ball(env, robot)
-        print("position Ende: ", env.self.position_x)
-        print("position Ende: ", env.self.position_y)
+        action.look_for_ball(env, robot)
+        print("x-position Ende: ", env.self.position_x)
+        print("y-position Ende: ", env.self.position_y)
 
 
 
