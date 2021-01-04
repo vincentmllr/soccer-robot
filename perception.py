@@ -215,10 +215,6 @@ class TrackBall():
             #frame = cv.imread(image)
             
             frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image),cv.COLOR_RGB2BGR)
-            frame = cv.flip(frame,1)
-
-            gray = cv.cvtColor(frame,cv.COLOR_RGB2GRAY)
-            gray = cv.GaussianBlur(gray, (7,7), 0)
 
             if frame is None:
                 break
@@ -258,13 +254,13 @@ class TrackBall():
                     estimated_distance = (400*14.86)/radius
                     estimated_rotation_to_ball = (-0.5 + (x/620)) * 90
                     print("Distance: ", estimated_distance, "Rotation ", estimated_rotation_to_ball )
-                    rotation_sum = env._self.rotation + estimated_rotation_to_ball
-                    #estimated_x = env._self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    #estimated_y = env._self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                    rotation_sum = env.self.rotation + estimated_rotation_to_ball
+                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
 
-                    #env._ball._position_x = estimated_x
-                    #env._ball._position_x = estimated_y
-                    #env._ball._last_seen = timestamp
+                    env.ball.position_x = estimated_x
+                    env.ball.position_y = estimated_y
+                    env.ball._last_seen = timestamp
 
 
 
@@ -304,7 +300,6 @@ def detect_ball(robot, environment):
     bt.start_tracking(robot, environment)
 
 
-<<<<<<< HEAD
 if __name__ == "__main__":
     args = anki_vector.util.parse_command_args()
     with anki_vector.Robot(args.serial) as robot:
@@ -321,8 +316,5 @@ if __name__ == "__main__":
         robot.behavior.set_head_angle(degrees(0))
         
         detect_ball(robot, environment)
-=======
 
-    
->>>>>>> 16beecd0831cb59d2d75e5b6ab93824908b9c9e2
     
