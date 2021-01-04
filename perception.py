@@ -1,28 +1,24 @@
 import os
 import time
 import math
-from anki_vector.util import *
 
+import anki_vector
+from anki_vector.util import *
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.customvision.training import CustomVisionTrainingClient
 from azure.cognitiveservices.vision.customvision.training.models import ImageFileCreateEntry, Region
 from azure.cognitiveservices.vision.customvision.prediction import CustomVisionPredictionClient
 from msrest.authentication import ApiKeyCredentials
-
 from PIL import Image
 import PIL.Image
-
 import argparse
 import tensorflow as tf
 import numpy as np
-
-from collections import deque
 import cv2 as cv
 import imutils
 
 import environment as env
-import anki_vector
-
+import support_functions as sp
 
 
 MODEL_FILENAME = 'model_s1.pb'
@@ -32,7 +28,7 @@ LABELS_FILENAME = 'labels.txt'
 # Predictionclass for online prediction with Azure Custom Vision
 class PredictionCloud():
 
-
+    #Booting credentials
     def __init__(self):
 
         self.ENDPOINT = "https://vector.cognitiveservices.azure.com/"
@@ -44,7 +40,7 @@ class PredictionCloud():
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
-        
+    #send picture to server and process the prediction result    
     def prediction(self, image, picture_timestamp, environment):
         
         prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
@@ -66,7 +62,7 @@ class PredictionCloud():
 
             if prediciton.tag_name == 'Vector' and found_vector == False:
                 if prediction.probability > 0.4:
-                    estimated_distance = prediction.bounding_box.height * 15
+                    estimated_distance = (650*14.86)/prediction.bounding_box.height
                     if estimated_distance < 100:
                         object_distance = distance(robot)
                         if object_distance is not None:
@@ -128,6 +124,8 @@ class PredictionTF():
             outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
             return outputs
 
+
+# init_camera_feed muss davor ausführen
 class TrackBall():
 
 
@@ -147,6 +145,7 @@ class TrackBall():
     high_H_name = 'High H'
     high_S_name = 'High S'
     high_V_name = 'High V'
+
 
     def start_tracking(self, robot, env):
         
@@ -187,11 +186,7 @@ class TrackBall():
             self.high_V = max(self.high_V, self.low_V+1)
             cv.setTrackbarPos(self.high_V_name, self.window_detection_name, self.high_V)
         
-        parser = argparse.ArgumentParser(description='Code for Thresholding Operations using inRange tutorial.')
-        parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
-        args = parser.parse_args()
-        #cap = cv.VideoCapture(args.camera)
-        # cap = cv.VideoCapture(robot.camera.latest_image.raw_image)
+
         cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name, cv.WINDOW_NORMAL)
         cv.resizeWindow(self.window_detection_name, 500, 490)
@@ -205,17 +200,9 @@ class TrackBall():
         cv.createTrackbar(self.low_V_name, self.window_detection_name , self.low_V, self.max_value, on_low_V_thresh_trackbar)
         cv.createTrackbar(self.high_V_name, self.window_detection_name , self.high_V, self.max_value, on_high_V_thresh_trackbar)
 
-
         while robot.camera.image_streaming_enabled():
             
-            #ret, frame = cap.read()
-            #image = robot.camera.latest_image.raw_image
-
-            #frame = cv.imdecode()
-            #frame = cv.imread(image)
-            
-            frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image),cv.COLOR_RGB2BGR)
-
+            frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image), cv.COLOR_RGB2BGR)
             if frame is None:
                 break
             timestamp = time.time()
@@ -244,16 +231,14 @@ class TrackBall():
                 if radius > 10:
                     # draw the circle and centroid on the frame,
                     # then update the list of tracked points
-                    cv.circle(frame, (int(x), int(y)), int(radius),
-                        (0, 255, 255), 2)
+                    cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
                     cv.circle(frame, center, 5, (0, 0, 255), -1)
 
 
                     #Add ball to environment
                     # Distance = real radius * focallength / radius in the frame
                     estimated_distance = (400*14.86)/radius
-                    estimated_rotation_to_ball = (-0.5 + (x/620)) * 90
-                    print("Distance: ", estimated_distance, "Rotation ", estimated_rotation_to_ball )
+                    estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
                     rotation_sum = env.self.rotation + estimated_rotation_to_ball
                     estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
                     estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
@@ -262,13 +247,9 @@ class TrackBall():
                     env.ball.position_y = estimated_y
                     env.ball._last_seen = timestamp
 
-
-
-            
-            
             cv.imshow(self.window_capture_name, frame)
             cv.imshow(self.window_detection_name, frame_threshold)
-            
+
             key = cv.waitKey(30)
             if key == ord('q') or key == 27:
                 break
@@ -280,20 +261,21 @@ class TrackBall():
 def detect_object(robot, environment, mode):
     if mode == "online":
         predictor = PredictionCloud()
-        t = time.time()
-        image = sf.take_picture_to_byte(robot)
-        result = predictor.prediction(image ,t, environment)
-        elapsed = time.time() - t
-        print('Duration:', elapsed)
-        return result
+        while True:
+            t = time.time()
+            image = sf.take_picture_to_byte(robot)
+            result = predictor.prediction(image, t, environment)
+            elapsed = time.time() - t
+            print('Duration:', elapsed)
+
     elif mode == "offline":
-        t = time.time()
         od_model = PredictionTF(model_filename)
-        image = robot.camera.latest_image.raw_image
-        image = PIL.Image.open(image_filename, t, environment)
-        result = od_model.predict_image(image)
-        elapsed = time.time() - t
-        print("Duration: ", elapsed)
+        while True:
+            t = time.time()
+            image = robot.camera.latest_image.raw_image
+            result = od_model.predict_image(image)
+            elapsed = time.time() - t
+            print("Duration: ", elapsed)
 
 def detect_ball(robot, environment):
     bt = TrackBall()
@@ -310,7 +292,7 @@ if __name__ == "__main__":
                                     ball_diameter=40.0,
                                     position_start_x=100.0,
                                     position_start_y=500.0,
-                                    enable_environment_viewer = False)
+                                    enable_environment_viewer = True)
         robot.camera.init_camera_feed()
         robot.behavior.set_eye_color(0.05, 1.0)
         robot.behavior.set_head_angle(degrees(0))
