@@ -268,7 +268,7 @@ class TrackBall():
 
 
 
-def detect_object(robot, mode, environment):
+def detect_object(robot, environment, mode):
     if mode == "online":
         predictor = PredictionCloud()
         t = time.time()
