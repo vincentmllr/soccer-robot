@@ -9,9 +9,6 @@ import threading
 import time
 from anki_vector.util import degrees, distance_mm, speed_mmps, Angle, Pose
 
-
-# args = anki_vector.util.parse_command_args()
-# with anki_vector.Robot(args.serial) as robot:
 x_goal_enemy = 2000
 y_goal_enemy = 500
 x_goal_self = 0
@@ -23,8 +20,11 @@ def look_for_ball(env, robot):
     ruft dann play_ball auf.
     '''
     print("look_for_ball()")
-    while not env.ball.is_seen():
+    ball_is_seen = False
+    while not ball_is_seen:
         robot.behavior.turn_in_place(degrees(45))
+        ball_is_seen = env.ball.is_seen()
+        print(env.self.position_x)
     print("ball found")
     play_ball(env, robot)
     
@@ -51,7 +51,7 @@ def play_offensive(env, robot):
     print("play_offensive()")
     x_ball = env.ball.position_x
     y_ball = env.ball.position_y
-    print("Positon Ball: x = " + x_ball + "; y = " + y_ball)
+    print("Positon Ball: x = ", x_ball, "; y = " + y_ball)
     
     # Berechnung des Richtungsvektors
     x_direction = 1
@@ -66,23 +66,24 @@ def play_offensive(env, robot):
     # Verlängerung zur Schussbahn, zu dem Vector fahren soll.
     x_vector_pos2 = -100 * x_direction_norm + x_ball
     y_vector_pos2 = -100 * y_direction_norm + x_ball
-    print("Neu brechnete Position Vector: x = " + x_vector_pos2 + " y = " + y_vector_pos2)
+    print("Neu brechnete Position Vector: x = ", x_vector_pos2 + " y = ",
+     y_vector_pos2)
 
     # Vector fährt von Positon 1 (aktuell) zur Position 2
     '''eventuell mit go_to_pose(pose)'''
 
     turning_angel = turning_angel_vector(env, x_vector_pos2, y_vector_pos2) # Berechenen des Winkels um den sich Vector drehen muss (Positon 1)
-    print("Turning-Angle zur Position 2: " + turning_angel)
+    print("Turning-Angle zur Position 2: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich auf Position 1
 
     y_vector_pos1 = env.self.position_y
     x_vector_pos1 = env.self.position_x
     distance_p1_p2 = ((y_vector_pos2 - y_vector_pos1)**2 + (x_vector_pos2 - x_vector_pos1)**2)**0.5  # Strecke zwischen Position 1 und 2
-    print("Distanz zu Positon 2: " + distance_p1_p2)
+    print("Distanz zu Positon 2: ", distance_p1_p2)
     robot.behavior.drive_straight(distance_mm(distance_p1_p2), speed_mmps(500)) # Vector fährt zu Position 2
 
     turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector drehen muss (Position 2)
-    print("Turning-Angle zum Tor: " + turning_angel)
+    print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich auf Position 1
 
     shooting(env, robot)  # Vector fährt zum Ball und schießt
@@ -94,21 +95,21 @@ def play_defensive(env, robot):
     print("play_defensive()")
     x_ball = env.ball.position_x
     y_ball = env.ball.position_y
-    print("Positon Ball: x = " + x_ball + "; y = " + y_ball)
+    print("Positon Ball: x = ", x_ball + "; y = ",  y_ball)
 
     # Zum Tor fahren
     turning_angel = turning_angel_vector(env, (x_goal_self + 50), y_goal_self) # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss 
-    print("Turning-Angle zum Tor: " + turning_angel)
+    print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum eigenen Tor
 
     y_vector = env.self.position_y
     x_vector = env.self.position_x
     distance_to_goal = ((y_vector - y_goal_self)**2 + (x_vector - (x_goal_self + 5))**2)**0.5  # Strecke zwischen Vector und eigenem Tor
-    print("Distanz zum eigenen Tor " + distance_to_goal)
+    print("Distanz zum eigenen Tor ", distance_to_goal)
     robot.behavior.drive_straight(distance_mm(distance_to_goal), speed_mmps(500))  # Vector fährt zum eigenen Tor
 
     turning_angel = turning_angel_vector(env, x_ball, y_ball) # Berechnen des Winkel um den sich Vector zur letzten bekannten Positon des Balls drehen muss 
-    print("Turning-Angle zum Tor: " + turning_angel)
+    print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zur letzten bekannten Postion des Balls
     
 
@@ -161,14 +162,14 @@ def shooting(env, robot):
             poi = perception.detect_object(robot, "online", pic)
             if poi > 0.55:
                 ball_is_in_line.clear()
-                correction_angle = (45-(poi*2)*45)  # Winkel um den korregiert wird
-                print("Korrektur um " + correction_angle + " Grad")
+                correction_angle = (45-(poi*2)*45)  # Winkel um den korrigiert wird
+                print("Korrektur um ", correction_angle, " Grad")
                 robot.behavior.turn_in_place(degrees(correction_angle))
                 ball_is_in_line.set()
             elif poi < 0.45:
                 ball_is_in_line.clear()
-                correction_angle = ((poi-0.5) * -45)  # Winkel um den korregiert wird
-                print("Korrektur um " + correction_angle + " Grad")
+                correction_angle = ((poi-0.5) * -45)  # Winkel um den korrigiert wird
+                print("Korrektur um ", correction_angle, " Grad")
                 robot.behavior.turn_in_place(degrees(correction_angle))
                 ball_is_in_line.set()
 
@@ -216,3 +217,33 @@ def shooting(env, robot):
     drive_and_shootThread.start()
     ball_still_in_lineThread.start()
     shootThread.start()
+
+
+def main():
+    
+    args = anki_vector.util.parse_command_args()
+    with anki_vector.Robot(args.serial) as robot:
+        env = environment.Environment(robot,
+                                      field_length_x=2000.0,
+                                      field_length_y=1000.0,
+                                      goal_width=200.0,
+                                      ball_diameter=40.0,
+                                      position_start_x=100.0,
+                                      position_start_y=500.0,
+                                      enable_environment_viewer=False)
+        print("Zum Starten Enter drücken")
+        wait_until_enter = input()
+        print("Goooooo")
+        print("postion anfang: ", env.self.position_x)
+        print("postion anfang: ", env.self.position_y)
+        
+        print("detect_object()")
+        #perception.detect_ball(robot, env)
+        look_for_ball(env, robot)
+        print("position Ende: ", env.self.position_x)
+        print("position Ende: ", env.self.position_y)
+
+
+if __name__ == "__main__":
+    main()
+
