@@ -301,17 +301,21 @@ class EnvironmentViewer:
         window = pygame.display.set_mode((window_width, window_height))
         clock = pygame.time.Clock()
 
+        self_png_rotation = 0.0
+        enemy_png_rotation = 0.0
+        rotation_offset = 90.0
         self_png = pygame.image.load("vector_without_background.png").convert_alpha()
         self_png = pygame.transform.scale(self_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
+        self_png = pygame.transform.rotate(self_png, rotation_offset)
         enemy_png = pygame.image.load("vector_without_background.png").convert_alpha()
-        enemy_png = pygame.transform.scale(enemy_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))        
+        enemy_png = pygame.transform.scale(enemy_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
+        enemy_png = pygame.transform.rotate(enemy_png, rotation_offset)
         
         self.draw_field(window, window_height, window_width,
                         edge, line_thickness, goal_size_y, 
                         GREY_DARK, GREY_LIGHT, BLACK)
 
         quit = False
-        help = False
 
         while not quit:
 
@@ -319,53 +323,45 @@ class EnvironmentViewer:
                 # print(event)
                 if event.type == QUIT:
                     quit = True
-            
+
             self_position_x = self.scale(self._environment.self.position_x)
             self_position_y = self.scale(self._environment.self.position_y)
             self_rotation = self._environment.self.rotation
-            enemy_position_x = self.scale(self._environment.enemy.position_y)
-            enemy_position_y = self.scale(self._environment.enemy.position_x)
+            enemy_position_x = self.scale(self._environment.enemy.position_x)
+            enemy_position_y = self.scale(self._environment.enemy.position_y)
             enemy_rotation = self._environment.enemy.rotation
             ball_position_x = self.scale(self._environment.ball.position_x)
             ball_position_y = self.scale(self._environment.ball.position_y)
 
-            vector = Rect(self_position_y-robot_size_y/2 + edge,
-                          self_position_x-robot_size_x*0.8 + edge,
-                          robot_size_y,
-                          robot_size_x)
-            enemy = Rect(enemy_position_y-robot_size_y/2 + edge,
-                         enemy_position_x-robot_size_x*0.2 + edge,
-                         robot_size_y,
-                         robot_size_x)
-
-            #Draw Ball
+            # Draw Ball
             pygame.draw.circle(window,
                                ORANGE,
                                (ball_position_y + edge,
                                 ball_position_x + edge),
                                ball_size_x/2)
-            pygame.draw.rect(window, WHITE, vector)
-            pygame.draw.rect(window, WHITE, enemy)
-            # pygame.draw.polygon(window, ORANGE, [(window_width/2, window_height/2-10), (window_width/2, window_height/2+10), (window_width/2-20, window_height/2)])
-            
-            #Draw Self
-            self_png = pygame.transform.rotate(self_png, 90.0 + self_rotation)
-            window.blit(self_png, (self_position_y - robot_size_y/2 + edge,
-                                   self_position_x - robot_size_x*0.8 + edge))
-            #Draw Enemy
-            enemy_png = pygame.transform.rotate(enemy_png, 90.0 + enemy_rotation)
-            window.blit(enemy_png, (enemy_position_y - robot_size_y/2 + edge,
-                                    enemy_position_x - robot_size_x*0.2 + edge))
+            # Draw Self
+            if self_rotation != self_png_rotation:
+                self_rotation_difference = self_rotation - self_png_rotation
+                self_png = pygame.transform.rotate(self_png,
+                                                   self_rotation_difference)
+                self_png_rotation = self_rotation
+            window.blit(self_png, (self_position_y - robot_size_y*0.7 + edge,
+                                   self_position_x - robot_size_x + edge))
+            # Draw Enemy
+            if enemy_rotation != enemy_png_rotation:
+                enemy_rotation_difference = enemy_rotation - enemy_png_rotation
+                enemy_png = pygame.transform.rotate(enemy_png,
+                                                    enemy_rotation_difference)
+                enemy_png_rotation = enemy_rotation
+            window.blit(enemy_png, (enemy_position_y - robot_size_y*0.7 + edge,
+                                    enemy_position_x - robot_size_x/2 + edge))
 
-
-            if help is not True:
-                print(f'Painted Vector at {self._environment.self.position_x},{self_position_y}')
-                print(f'Painted Enemy at {self._environment.enemy.position_x},{self._environment.enemy.position_y}')
-                print(f'Painted Ball at {self._environment.ball.position_x},{self._environment.ball.position_y}')
-                help = True
+            # print(f'Viewer: Self:{round(self_position_x*3)},{round(self_position_y*3)}'
+            #       f'Painted Enemy at {round(enemy_position_x*3)},{enemy_position_y*3}'
+            #       f'Painted Ball at {round(ball_position_x*3)},{ball_position_y*3}')
 
             pygame.display.update()
-            clock.tick(frames_per_second)                    
+            clock.tick(frames_per_second)
 
         pygame.quit()
 
