@@ -1,5 +1,7 @@
 import os
 import time
+import math
+from anki_vector.util import *
 
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.customvision.training import CustomVisionTrainingClient
@@ -15,11 +17,11 @@ import tensorflow as tf
 import numpy as np
 
 from collections import deque
-from imutils.video import VideoStream
 import cv2 as cv
 import imutils
 
-import environment
+import environment as env
+import anki_vector
 
 
 
@@ -128,91 +130,101 @@ class PredictionTF():
 
 class TrackBall():
 
+
+    max_value = 255
+    max_value_H = 360//2
+    low_H = 0
+    low_S = 174
+    low_V = 189
+    high_H = 26
+    high_S = max_value
+    high_V = max_value
+    window_capture_name = 'Vectors Camera'
+    window_detection_name = 'Object Detection'
+    low_H_name = 'Low H'
+    low_S_name = 'Low S'
+    low_V_name = 'Low V'
+    high_H_name = 'High H'
+    high_S_name = 'High S'
+    high_V_name = 'High V'
+
     def start_tracking(self, robot, env):
         
-        max_value = 255
-        max_value_H = 360//2
-        low_H = 0
-        low_S = 174
-        low_V = 189
-        high_H = 26
-        high_S = max_value
-        high_V = max_value
-        window_capture_name = 'Vectors Camera'
-        window_detection_name = 'Object Detection'
-        low_H_name = 'Low H'
-        low_S_name = 'Low S'
-        low_V_name = 'Low V'
-        high_H_name = 'High H'
-        high_S_name = 'High S'
-        high_V_name = 'High V'
-
-
         def on_low_H_thresh_trackbar(val):
             global low_H
             global high_H
-            low_H = val
-            low_H = min(high_H-1, low_H)
-            cv.setTrackbarPos(low_H_name, window_detection_name, low_H)
+            self.low_H = val
+            self.low_H = min(self.high_H-1, self.low_H)
+            cv.setTrackbarPos(self.low_H_name, self.window_detection_name, self.low_H)
         def on_high_H_thresh_trackbar(val):
             global low_H
             global high_H
-            high_H = val
-            high_H = max(high_H, low_H+1)
-            cv.setTrackbarPos(high_H_name, window_detection_name, high_H)
+            self.high_H = val
+            self.high_H = max(self.high_H, self.low_H+1)
+            cv.setTrackbarPos(self.high_H_name, self.window_detection_name, self.high_H)
         def on_low_S_thresh_trackbar(val):
             global low_S
             global high_S
-            low_S = val
-            low_S = min(high_S-1, low_S)
-            cv.setTrackbarPos(low_S_name, window_detection_name, low_S)
+            self.low_S = val
+            self.low_S = min(self.high_S-1, self.low_S)
+            cv.setTrackbarPos(self.low_S_name, self.window_detection_name, self.low_S)
         def on_high_S_thresh_trackbar(val):
             global low_S
             global high_S
-            high_S = val
-            high_S = max(high_S, low_S+1)
-            cv.setTrackbarPos(high_S_name, window_detection_name, high_S)
+            self.high_S = val
+            self.high_S = max(self.high_S, self.low_S+1)
+            cv.setTrackbarPos(self.high_S_name, self.window_detection_name, self.high_S)
         def on_low_V_thresh_trackbar(val):
             global low_V
             global high_V
-            low_V = val
-            low_V = min(high_V-1, low_V)
-            cv.setTrackbarPos(low_V_name, window_detection_name, low_V)
+            self.low_V = val
+            self.low_V = min(self.high_V-1, self.low_V)
+            cv.setTrackbarPos(self.low_V_name, self.window_detection_name, self.low_V)
         def on_high_V_thresh_trackbar(val):
             global low_V
             global high_V
-            high_V = val
-            high_V = max(high_V, low_V+1)
-            cv.setTrackbarPos(high_V_name, window_detection_name, high_V)
+            self.high_V = val
+            self.high_V = max(self.high_V, self.low_V+1)
+            cv.setTrackbarPos(self.high_V_name, self.window_detection_name, self.high_V)
         
         parser = argparse.ArgumentParser(description='Code for Thresholding Operations using inRange tutorial.')
         parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
         args = parser.parse_args()
         #cap = cv.VideoCapture(args.camera)
-        #cap = cv.VideoCapture(robot.camera.latest_image)
-        cv.namedWindow(window_capture_name, cv.WINDOW_NORMAL)
-        cv.namedWindow(window_detection_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_detection_name, 500, 490)
-        cv.resizeWindow(window_capture_name, 600, 480)
+        # cap = cv.VideoCapture(robot.camera.latest_image.raw_image)
+        cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.window_detection_name, cv.WINDOW_NORMAL)
+        cv.resizeWindow(self.window_detection_name, 500, 490)
+        cv.resizeWindow(self.window_capture_name, 600, 480)
 
 
-        cv.createTrackbar(low_H_name, window_detection_name , low_H, max_value_H, on_low_H_thresh_trackbar)
-        cv.createTrackbar(high_H_name, window_detection_name , high_H, max_value_H, on_high_H_thresh_trackbar)
-        cv.createTrackbar(low_S_name, window_detection_name , low_S, max_value, on_low_S_thresh_trackbar)
-        cv.createTrackbar(high_S_name, window_detection_name , high_S, max_value, on_high_S_thresh_trackbar)
-        cv.createTrackbar(low_V_name, window_detection_name , low_V, max_value, on_low_V_thresh_trackbar)
-        cv.createTrackbar(high_V_name, window_detection_name , high_V, max_value, on_high_V_thresh_trackbar)
+        cv.createTrackbar(self.low_H_name, self.window_detection_name , self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
+        cv.createTrackbar(self.high_H_name, self.window_detection_name , self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
+        cv.createTrackbar(self.low_S_name, self.window_detection_name , self.low_S, self.max_value, on_low_S_thresh_trackbar)
+        cv.createTrackbar(self.high_S_name, self.window_detection_name , self.high_S, self.max_value, on_high_S_thresh_trackbar)
+        cv.createTrackbar(self.low_V_name, self.window_detection_name , self.low_V, self.max_value, on_low_V_thresh_trackbar)
+        cv.createTrackbar(self.high_V_name, self.window_detection_name , self.high_V, self.max_value, on_high_V_thresh_trackbar)
 
 
-        while True:
+        while robot.camera.image_streaming_enabled():
             
             #ret, frame = cap.read()
-            frame = cv.imread(robot.camera.latest_image)
+            #image = robot.camera.latest_image.raw_image
+
+            #frame = cv.imdecode()
+            #frame = cv.imread(image)
+            
+            frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image),cv.COLOR_RGB2BGR)
+            frame = cv.flip(frame,1)
+
+            gray = cv.cvtColor(frame,cv.COLOR_RGB2GRAY)
+            gray = cv.GaussianBlur(gray, (7,7), 0)
+
             if frame is None:
                 break
             timestamp = time.time()
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-            frame_threshold = cv.inRange(frame_HSV, (low_H, low_S, low_V), (high_H, high_S, high_V))
+            frame_threshold = cv.inRange(frame_HSV, (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V))
             frame_threshold = cv.erode(frame_threshold, None, iterations=2)
             frame_threshold = cv.dilate(frame_threshold, None, iterations=2)
 
@@ -243,22 +255,23 @@ class TrackBall():
 
                     #Add ball to environment
                     # Distance = real radius * focallength / radius in the frame
-                    estimated_distance = (400*4.25)/radius
-                    estimated_rotation_to_ball = (-0.5 + (x/1277.5)) * 90
+                    estimated_distance = (400*14.86)/radius
+                    estimated_rotation_to_ball = (-0.5 + (x/620)) * 90
+                    print("Distance: ", estimated_distance, "Rotation ", estimated_rotation_to_ball )
                     rotation_sum = env._self.rotation + estimated_rotation_to_ball
-                    estimated_x = env._self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    estimated_y = env._self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                    #estimated_x = env._self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                    #estimated_y = env._self.position_y + (math.sin(rotation_sum) * estimated_distance)
 
-                    env._ball._position_x = estimated_x
-                    env._ball._position_x = estimated_y
-                    env._ball._last_seen = timestamp
+                    #env._ball._position_x = estimated_x
+                    #env._ball._position_x = estimated_y
+                    #env._ball._last_seen = timestamp
 
 
 
             
             
-            cv.imshow(window_capture_name, frame)
-            cv.imshow(window_detection_name, frame_threshold)
+            cv.imshow(self.window_capture_name, frame)
+            cv.imshow(self.window_detection_name, frame_threshold)
             
             key = cv.waitKey(30)
             if key == ord('q') or key == 27:
@@ -292,5 +305,19 @@ def detect_ball(robot, environment):
 
 
 if __name__ == "__main__":
-    
+    args = anki_vector.util.parse_command_args()
+    with anki_vector.Robot(args.serial) as robot:
+        environment = env.Environment(robot,
+                                    field_length_x=2000.0,
+                                    field_length_y=1000.0,
+                                    goal_width=200.0,
+                                    ball_diameter=40.0,
+                                    position_start_x=100.0,
+                                    position_start_y=500.0,
+                                    enable_environment_viewer = False)
+        robot.camera.init_camera_feed()
+        robot.behavior.set_eye_color(0.05, 1.0)
+        robot.behavior.set_head_angle(degrees(0))
+        
+        detect_ball(robot, environment)
     
