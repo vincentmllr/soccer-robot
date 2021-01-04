@@ -60,7 +60,7 @@ class Environment():
                                              self._FIELD_LENGTH_X,
                                              self._POSITION_START_Y,
                                              0.0, 0, self)
-        if enable_environment_viewer is True:
+        if enable_environment_viewer:
             self.environment_viewer = EnvironmentViewer(self)
             environment_viewer_thread = threading.Thread(environment_viewer.show())
             environment_viewer_thread.start()
@@ -81,8 +81,8 @@ class Environment():
             position_x = self._robot.pose.to_matrix().pos_xyz[0]
             position_y = self._robot.pose.to_matrix().pos_xyz[1]
             rotation = self._robot.pose_angle_rad
-            self._self.position_x = position_x - self._POSITION_START_X
-            self._self.position_y = position_y - self._POSITION_START_Y
+            self._self.position_x = position_x + self._POSITION_START_X
+            self._self.position_y = position_y + self._POSITION_START_Y
             self._self.rotation = rotation
             self._self.last_seen = time.time()
             print(f'Updated {self._self.tag} position.')
@@ -146,15 +146,16 @@ class EnvironmentObject():
                         z=0,
                         angle_z=anki_vector.util.Angle(degrees=0))
 
-    def _was_seen_recently(self):
+    def _was_seen_recently(self, now):
         time_threshold_recently = 0.5  # in Sekunden
-        if (self._last_seen+time_threshold_recently) - time.time() >= 0:
+        if (self._last_seen + time_threshold_recently) - now >= 0:
             return True
         else:
             return False
 
     def is_seen(self):
-        return self._was_seen_recently()
+        now = time.time()
+        return self._was_seen_recently(now)
 
     @property
     def tag(self):
@@ -174,7 +175,7 @@ class EnvironmentObject():
 
     @position_x.setter
     def position_x(self, position_x):
-        self._position_x = position_x - self._environment._POSITION_START_X
+        self._position_x = position_x
 
     @property
     def position_y(self):
@@ -182,7 +183,7 @@ class EnvironmentObject():
 
     @position_y.setter
     def position_y(self, position_y):
-        self._position_y = position_y - self._environment._POSITION_START_Y
+        self._position_y = position_y
 
     @property
     def rotation(self):
