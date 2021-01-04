@@ -133,12 +133,12 @@ class TrackBall():
 
     max_value = 255
     max_value_H = 360//2
-    low_H = 0
-    low_S = 174
-    low_V = 189
-    high_H = 26
-    high_S = max_value
-    high_V = max_value
+    low_H = 6
+    low_S = 145
+    low_V = 140
+    high_H = 60
+    high_S = 255
+    high_V = 245
     window_capture_name = 'Vectors Camera'
     window_detection_name = 'Object Detection'
     low_H_name = 'Low H'
