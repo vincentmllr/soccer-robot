@@ -188,8 +188,8 @@ class TrackBall():
         parser = argparse.ArgumentParser(description='Code for Thresholding Operations using inRange tutorial.')
         parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
         args = parser.parse_args()
-        cap = cv.VideoCapture(args.camera)
-        # cap = cv.VideoCapture(robot.camera.latest_image)
+        #cap = cv.VideoCapture(args.camera)
+        #cap = cv.VideoCapture(robot.camera.latest_image)
         cv.namedWindow(window_capture_name, cv.WINDOW_NORMAL)
         cv.namedWindow(window_detection_name, cv.WINDOW_NORMAL)
         cv.resizeWindow(window_detection_name, 500, 490)
@@ -206,7 +206,8 @@ class TrackBall():
 
         while True:
             
-            ret, frame = cap.read()
+            #ret, frame = cap.read()
+            frame = cv.imread(robot.camera.latest_image)
             if frame is None:
                 break
             timestamp = time.time()
@@ -290,6 +291,6 @@ def detect_ball(robot, environment):
     bt.start_tracking(robot, environment)
 
 
-if __name__ == "__main__":
+
     
     
