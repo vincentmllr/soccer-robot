@@ -64,7 +64,7 @@ class Environment():
             self.environment_viewer = EnvironmentViewer(self)
             viewer_thread = threading.Thread(target=self.environment_viewer.show())
             viewer_thread.start()
-            viewer_thread.join()
+            #viewer_thread.join()
         print('Environment initialized with objects in startposition.')
 
     def environment_objects(self):
