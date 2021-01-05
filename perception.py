@@ -29,7 +29,7 @@ _rotation_to_ball = None
 # Predictionclass for online prediction with Azure Custom Vision
 class PredictionCloud():
 
-    #Booting credentials
+    # Booting credentials
     def __init__(self):
 
         self.ENDPOINT = "https://vector.cognitiveservices.azure.com/"
@@ -41,7 +41,7 @@ class PredictionCloud():
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
-    #send picture to server and process the prediction result    
+    # send picture to server and process the prediction result    
     def prediction(self, image, timestamp, environment):
         
         prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
@@ -80,7 +80,7 @@ class PredictionCloud():
 
 
 # Predictionclass for offline prediction with Tensorflow
-#TODO Implementierung Environment
+# TODO Implementierung Environment
 class PredictionTF():
     INPUT_TENSOR_NAME = 'image_tensor:0'
     OUTPUT_TENSOR_NAMES = ['detected_boxes:0', 'detected_scores:0', 'detected_classes:0']
@@ -106,12 +106,12 @@ class PredictionTF():
         with tf.compat.v1.Session(graph=self.graph) as sess:
             output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
             outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
+            print(outputs)
             return outputs
 
 
 # init_camera_feed muss davor ausführen
 class TrackBall():
-
 
     max_value = 255
     max_value_H = 360//2
@@ -139,30 +139,35 @@ class TrackBall():
             self.low_H = val
             self.low_H = min(self.high_H-1, self.low_H)
             cv.setTrackbarPos(self.low_H_name, self.window_detection_name, self.low_H)
+        
         def on_high_H_thresh_trackbar(val):
             global low_H
             global high_H
             self.high_H = val
             self.high_H = max(self.high_H, self.low_H+1)
             cv.setTrackbarPos(self.high_H_name, self.window_detection_name, self.high_H)
+        
         def on_low_S_thresh_trackbar(val):
             global low_S
             global high_S
             self.low_S = val
             self.low_S = min(self.high_S-1, self.low_S)
             cv.setTrackbarPos(self.low_S_name, self.window_detection_name, self.low_S)
+        
         def on_high_S_thresh_trackbar(val):
             global low_S
             global high_S
             self.high_S = val
             self.high_S = max(self.high_S, self.low_S+1)
             cv.setTrackbarPos(self.high_S_name, self.window_detection_name, self.high_S)
+       
         def on_low_V_thresh_trackbar(val):
             global low_V
             global high_V
             self.low_V = val
             self.low_V = min(self.high_V-1, self.low_V)
             cv.setTrackbarPos(self.low_V_name, self.window_detection_name, self.low_V)
+        
         def on_high_V_thresh_trackbar(val):
             global low_V
             global high_V
@@ -188,6 +193,7 @@ class TrackBall():
 
             if frame is None:
                 break
+
             timestamp = time.time()
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
             frame_threshold = cv.inRange(frame_HSV, (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V))
@@ -264,8 +270,9 @@ def detect_ball(robot, environment):
     bt = TrackBall()
     bt.start_tracking(robot, environment)
 
+
 def current_rotation_to_ball():
-    return rotation_to_ball
+    return _rotation_to_ball
 
 
 if __name__ == "__main__":
