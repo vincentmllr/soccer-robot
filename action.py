@@ -28,11 +28,13 @@ def look_for_ball(env, robot):
             robot.behavior.drive_straight(distance_mm(300), speed_mmps(500))
             degrees_turned = 0
         robot.behavior.turn_in_place(degrees(60))
-        print("60 grad")
         degrees_turned = degrees_turned + 60
         ball_is_seen = env.ball.is_seen()
     print("ball found")
     print("Rotation Vector: ", env.self.rotation)
+    #print(perception.current_rotation_to_ball())
+    #robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+    #print("turn to ball")
     play_ball(env, robot)
     
 
@@ -42,7 +44,7 @@ def play_ball(env, robot):
     (Vector zwischen gegnerischem Tor und Ball => defensiv)
     '''
     print("play_ball()")
-    if env.self.position_x < env.ball.position_x:
+    if ((env.self.rotation < 125) & (env.self.rotation > -115)):
         play_offensive(env, robot)
     else:
         play_defensive(env, robot)
@@ -56,10 +58,28 @@ def play_offensive(env, robot):
     shooting(env, robot) aufgerufen
     '''
     print("play_offensive()")
-    print("Rotation Vector: ", env.self.rotation)
-    x_ball = env.ball.position_x
-    y_ball = env.ball.position_y
+    unobstructed = robot.proximity.last_sensor_reading.unobstructed
+    if not unobstructed:
+        distance_to_ball = robot.proximity.last_sensor_reading.distance.distance_mm
+    while unobstructed or (distance_to_ball > 200):  # Vector soll bis 20cm vor dem ball gerade auf ihn zufahren
+        # robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+        robot.behavior.drive_straight(distance_mm(40), speed_mmps(500))
+        if not unobstructed:
+            distance_to_ball = robot.proximity.last_sensor_reading.distance.distance_mm
+
+    # Koordinaten vom Ball bestimmen
+    # robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+    distance_to_ball = robot.proximity.last_sensor_reading.distance.distance_mm
+    x_vector = env.self.position_x
+    y_vector = env.self.position_y
+    rotation_vector = env.self.rotation
+    x_ball = x_vector + math.cos(rotation_vector)*distance_to_ball
+    y_ball = y_vector + math.sin(rotation_vector)*distance_to_ball
     print("Positon Ball: x = ", x_ball, "; y = ",  y_ball)
+
+    # print("Rotation Vector: ", env.self.rotation)
+    # x_ball = env.ball.position_x
+    # y_ball = env.ball.position_y
     
     # Berechnung des Richtungsvektors
     x_direction = 1
@@ -108,12 +128,12 @@ def play_defensive(env, robot):
     print("Positon Ball: x = ", x_ball, "; y = ",  y_ball)
 
     # Zum Tor fahren
-    turning_angel = turning_angel_vector(env, (x_goal_self + 50), y_goal_self) # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss 
+    turning_angel = turning_angel_vector(env, (x_goal_self), y_goal_self) # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss 
     print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum eigenen Tor
     y_vector = env.self.position_y
     x_vector = env.self.position_x
-    distance_to_goal = ((y_vector - y_goal_self)**2 + (x_vector - (x_goal_self + 5))**2)**0.5  # Strecke zwischen Vector und eigenem Tor
+    distance_to_goal = ((y_vector - y_goal_self)**2 + (x_vector - (x_goal_self))**2)**0.5  # Strecke zwischen Vector und eigenem Tor
     print("Distanz zum eigenen Tor ", distance_to_goal)
     robot.behavior.drive_straight(distance_mm(distance_to_goal), speed_mmps(500))  # Vector fährt zum eigenen Tor
     print("Fahre zum Tor")
@@ -127,7 +147,9 @@ def turning_angel_vector(env, endposition_x, endposition_y):
     um danach auf einer Gerade vom aktuellen Standort zur Endposition zu fahren.
     '''
     startpositon_y = env.self.position_y
+    print("startpos-y = ", startpositon_y)
     startpositon_x = env.self.position_x
+    print("startpos-x = ", startpositon_x)
     countered_leg = endposition_y - startpositon_y  # Gegenkathete
     adjacent_leg = endposition_x - startpositon_x  # Ankathete
     angle_rad_pos2 = math.atan2(countered_leg, adjacent_leg)  # Winkel zwischen x-Achse und Gerade zwischen Postion 1 und 2 (Bogenmaß)
@@ -138,6 +160,8 @@ def turning_angel_vector(env, endposition_x, endposition_y):
         angle_deg_pos2 = 360 + angle_deg_pos2  # eventuell Umwandlung in positiven Winkel
     
     angle_deg_vector = env.self.rotation  # aktuelle Rotation des Vectors
+    if angle_deg_vector < 0:
+        angle_deg_vector = 360 + angle_deg_vector  # umwandlung von negativen in positiven Winkel
     turning_angle = 360 - angle_deg_vector + angle_deg_pos2  # Berechenen des Winkels um den sich Vector drehen muss
 
     if turning_angle > 360:
