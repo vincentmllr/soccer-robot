@@ -376,13 +376,15 @@ class EnvironmentViewer:
             #       f'Painted Enemy at {round(enemy_position_x*3)},{enemy_position_y*3}'
             #       f'Painted Ball at {round(ball_position_x*3)},{ball_position_y*3}')
             
-            pygame.display.flip()
+            #pygame.display.flip()
 
-            #pygame.display.update()
+            pygame.display.update()
             clock.tick(frames_per_second)
+            time.sleep(0.001)
+
 
         # pygame.quit()
-        print("Es geht weiter!")
+        print("Thread sollte funktionieren, wenn man das liest.")
 
 
 class EnvironmentTest():
