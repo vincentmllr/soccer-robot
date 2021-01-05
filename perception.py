@@ -23,6 +23,7 @@ import support_functions as sp
 
 MODEL_FILENAME = 'model_s1.pb'
 LABELS_FILENAME = 'labels.txt'
+_rotation_to_ball = None
 
 
 # Predictionclass for online prediction with Azure Custom Vision
@@ -41,7 +42,7 @@ class PredictionCloud():
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
     #send picture to server and process the prediction result    
-    def prediction(self, image, picture_timestamp, environment):
+    def prediction(self, image, timestamp, environment):
         
         prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
         found_ball = False
@@ -63,35 +64,18 @@ class PredictionCloud():
             if prediciton.tag_name == 'Vector' and found_vector == False:
                 if prediction.probability > 0.4:
                     estimated_distance = (650*14.86)/prediction.bounding_box.height
-                    if estimated_distance < 100:
-                        object_distance = distance(robot)
-                        if object_distance is not None:
-                            estimated_distance = object_distance
-                    estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
-                    estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
-                    env._enemy._position_x = estimated_x
-                    env._enemy._position_x = estimated_y
-                    env._enemy._last_seen = picture_timestamp
-                    found_ball = True
+                    estimated_rotation_to_ball = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                    rotation_sum = env.self.rotation + estimated_rotation_to_ball
+                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+
+                    env.enemy.position_x = estimated_x
+                    env.enemy.position_y = estimated_y
+                    env.enemy._last_seen = timestamp
+                    found_vector = True
                     print("Vector detected. Estimated position: " + estimated_x + ", " + estimated_y + ". Timestamp: " + picture_timestamp)
-                    
 
-            if prediciton.tag_name == 'Ball' and found_ball == False:
-                if prediction.probability > 0.4:
-                    estimated_distance = (400*4.25)/prediction.bounding_box.height
-                    if estimated_distance < 100 or  prediction.bounding_box.height + 0.1 < prediction.bounding_box.width:
-                        object_distance = distance(robot)
-                        if object_distance is not None:
-                            estimated_distance = object_distance
-                    estimated_x = robot.position.x + (math.cos(robot.rotation.q0) * estimated_distance)
-                    estimated_y = robot.position.y + (math.sin(robot.rotation.q0) * estimated_distance)
-                    env._ball._position_x = estimated_x
-                    env._ball._position_x = estimated_y
-                    env._ball._last_seen = picture_timestamp
-                    found_ball = True
-                    print("Ball detected. Estimated position: " + estimated_x + ", " + estimated_y + ". Timestamp: " + picture_timestamp)
-
-            if counter >= 4:
+            if counter >= 2:
                 break
 
 
@@ -186,12 +170,10 @@ class TrackBall():
             self.high_V = max(self.high_V, self.low_V+1)
             cv.setTrackbarPos(self.high_V_name, self.window_detection_name, self.high_V)
         
-
         cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name, cv.WINDOW_NORMAL)
         cv.resizeWindow(self.window_detection_name, 500, 490)
-        cv.resizeWindow(self.window_capture_name, 600, 480)
-
+        cv.resizeWindow(self.window_capture_name, 600, 550)
 
         cv.createTrackbar(self.low_H_name, self.window_detection_name , self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
         cv.createTrackbar(self.high_H_name, self.window_detection_name , self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
@@ -203,6 +185,7 @@ class TrackBall():
         while robot.camera.image_streaming_enabled():
             
             frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image), cv.COLOR_RGB2BGR)
+
             if frame is None:
                 break
             timestamp = time.time()
@@ -239,6 +222,7 @@ class TrackBall():
                     # Distance = real radius * focallength / radius in the frame
                     estimated_distance = (400*14.86)/radius
                     estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
+                    _rotation_to_ball = estimated_rotation_to_ball
                     rotation_sum = env.self.rotation + estimated_rotation_to_ball
                     estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
                     estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
@@ -255,9 +239,6 @@ class TrackBall():
                 break
 
 
-
-
-
 def detect_object(robot, environment, mode):
     if mode == "online":
         predictor = PredictionCloud()
@@ -269,17 +250,22 @@ def detect_object(robot, environment, mode):
             print('Duration:', elapsed)
 
     elif mode == "offline":
-        od_model = PredictionTF(model_filename)
+        od_model = PredictionTF(MODEL_FILENAME)
         while True:
             t = time.time()
             image = robot.camera.latest_image.raw_image
-            result = od_model.predict_image(image)
+            result = od_model.predict_image(image, t, environment)
             elapsed = time.time() - t
+            print(result)
             print("Duration: ", elapsed)
+
 
 def detect_ball(robot, environment):
     bt = TrackBall()
     bt.start_tracking(robot, environment)
+
+def current_rotation_to_ball():
+    return rotation_to_ball
 
 
 if __name__ == "__main__":
@@ -292,11 +278,10 @@ if __name__ == "__main__":
                                     ball_diameter=40.0,
                                     position_start_x=100.0,
                                     position_start_y=500.0,
-                                    enable_environment_viewer = True)
+                                    enable_environment_viewer = False)
         robot.camera.init_camera_feed()
         robot.behavior.set_eye_color(0.05, 1.0)
         robot.behavior.set_head_angle(degrees(0))
+        #detect_object(robot, environment, "offline")
         
         detect_ball(robot, environment)
-
-    
