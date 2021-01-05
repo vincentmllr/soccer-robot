@@ -20,12 +20,19 @@ def look_for_ball(env, robot):
     ruft dann play_ball auf.
     '''
     print("look_for_ball()")
-    ball_is_seen = False
+    ball_is_seen = env.ball.is_seen()
+    degrees_turned = 0
     while not ball_is_seen:
-        robot.behavior.turn_in_place(degrees(45))
+        if degrees_turned == 360:
+            print("Ball not found")
+            robot.behavior.drive_straight(distance_mm(300), speed_mmps(500))
+            degrees_turned = 0
+        robot.behavior.turn_in_place(degrees(60))
+        print("60 grad")
+        degrees_turned = degrees_turned + 60
         ball_is_seen = env.ball.is_seen()
-        print(env.self.position_x)
     print("ball found")
+    print("Rotation Vector: ", env.self.rotation)
     play_ball(env, robot)
     
 
@@ -49,6 +56,7 @@ def play_offensive(env, robot):
     shooting(env, robot) aufgerufen
     '''
     print("play_offensive()")
+    print("Rotation Vector: ", env.self.rotation)
     x_ball = env.ball.position_x
     y_ball = env.ball.position_y
     print("Positon Ball: x = ", x_ball, "; y = ",  y_ball)
@@ -87,28 +95,28 @@ def play_offensive(env, robot):
     print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich auf Position 1
 
-    shooting(env, robot)  # Vector fährt zum Ball und schießt
+    # shooting(env, robot)  # Vector fährt zum Ball und schießt
 
 
 def play_defensive(env, robot):
     '''Vector fährt 5cm vor eigenes Tor und dreht sich Richtung Ball
     '''
+    print("Rotation Vector: ", env.self.rotation)
     print("play_defensive()")
     x_ball = env.ball.position_x
     y_ball = env.ball.position_y
-    print("Positon Ball: x = ", x_ball , "; y = ",  y_ball)
+    print("Positon Ball: x = ", x_ball, "; y = ",  y_ball)
 
     # Zum Tor fahren
     turning_angel = turning_angel_vector(env, (x_goal_self + 50), y_goal_self) # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss 
     print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum eigenen Tor
-
     y_vector = env.self.position_y
     x_vector = env.self.position_x
     distance_to_goal = ((y_vector - y_goal_self)**2 + (x_vector - (x_goal_self + 5))**2)**0.5  # Strecke zwischen Vector und eigenem Tor
     print("Distanz zum eigenen Tor ", distance_to_goal)
     robot.behavior.drive_straight(distance_mm(distance_to_goal), speed_mmps(500))  # Vector fährt zum eigenen Tor
-
+    print("Fahre zum Tor")
     turning_angel = turning_angel_vector(env, x_ball, y_ball) # Berechnen des Winkel um den sich Vector zur letzten bekannten Positon des Balls drehen muss 
     print("Turning-Angle zum Ball: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zur letzten bekannten Postion des Balls
@@ -219,6 +227,9 @@ def shooting(env, robot):
     ball_still_in_lineThread.start()
     shootThread.start()
 
+    drive_and_shootThread.join()
+    ball_still_in_lineThread.join()
+    shootThread.join()
 
 def main():
     
