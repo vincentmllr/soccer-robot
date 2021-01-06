@@ -27,8 +27,6 @@ rotation_to_ball = None
 
 
 # Klasse zur Bildverarbeitung online
-# TODO  anzeige der Ergebnissebilder
-
 class VideoProcessingCloud():
 
 
