@@ -39,7 +39,7 @@ class VideoProcessingCloud():
         self.prediction_resource_id = "/subscriptions/f6e54442-3d5a-4083-ad0d-080f159ac33d/resourceGroups/Vision/providers/Microsoft.CognitiveServices/accounts/Vector"
         self.project_id = "d2693bf6-e18a-414f-bdba-2851847b43a0"
         self.publish_iteration_name = "Iteration3"
-        
+
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
@@ -269,6 +269,7 @@ def detect_object(robot, environment, mode):
 
 # Aktivieren der Ballerkennung
 def detect_ball(robot, environment):
+    robot.init_camera_feed()
     bt = TrackBall()
     bt.start_tracking(robot, environment)
 
