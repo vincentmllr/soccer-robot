@@ -1,12 +1,11 @@
 import anki_vector
-import multiprocessing
 import time
-from anki_vector.util import degrees, Pose, Speed, Distance
+from anki_vector.util import degrees, Pose
 from anki_vector import behavior
 import pygame
-import random
-from pygame.locals import *
+from pygame.locals import Rect, QUIT
 import threading
+import math
 
 NAME = 'Vector-N8G2'
 IP = '192.168.0.189'
@@ -45,7 +44,8 @@ class Environment():
         self._enemy = EnvironmentObject('Enemy',
                                         self._ROBOT_SIZE_X,
                                         self._ROBOT_SIZE_Y,
-                                        self._FIELD_LENGTH_X-self._POSITION_START_X,
+                                        self._FIELD_LENGTH_X
+                                        - self._POSITION_START_X,
                                         self._POSITION_START_Y,
                                         180.0, 0, self)
         self._goal_self = EnvironmentObject('Goal_self',
@@ -62,9 +62,10 @@ class Environment():
                                              0.0, 0, self)
         if enable_environment_viewer:
             self.environment_viewer = EnvironmentViewer(self)
-            environment_viewer_thread = threading.Thread(environment_viewer.show())
-            environment_viewer_thread.start()
-        print('Environment initialized with objects in startposition')
+            viewer_thread = threading.Thread(target=self.environment_viewer.show())
+            viewer_thread.start()
+            #viewer_thread.join()
+        print('Environment initialized with objects in startposition.')
 
     def environment_objects(self):
         '''Returns a list of all the objects on the map in the following order:
@@ -80,12 +81,11 @@ class Environment():
         else:
             position_x = self._robot.pose.to_matrix().pos_xyz[0]
             position_y = self._robot.pose.to_matrix().pos_xyz[1]
-            rotation = self._robot.pose_angle_rad
+            rotation = self._robot.pose_angle_rad / math.pi * 180.0 
             self._self.position_x = position_x + self._POSITION_START_X
             self._self.position_y = position_y + self._POSITION_START_Y
             self._self.rotation = rotation
             self._self.last_seen = time.time()
-            print(f'Updated {self._self.tag} position.')
             return self._self
 
     @property
@@ -132,10 +132,14 @@ class EnvironmentObject():
 
     def pose(self):
         if self._tag == 'Self':
-            self.position_x = self._environment.robot.pose.to_matrix().pos_xyz[0] - self._environment._POSITION_START_X
-            self.position_y = self._environment.robot.pose.to_matrix().pos_xyz[1] - self._environment._POSITION_START_Y
-            self.rotation = self._environment.robot.pose_angle_rad
-            print(f'Updated {self._tag} position.')
+            position_x = self._robot.pose.to_matrix().pos_xyz[0]
+            position_y = self._robot.pose.to_matrix().pos_xyz[1]
+            rotation = self._robot.pose_angle_rad / math.pi * 180.0 
+            self._self.position_x = position_x + self._POSITION_START_X
+            self._self.position_y = position_y + self._POSITION_START_Y
+            self._self.rotation = rotation
+            self._self.last_seen = time.time()
+            # print(f'Updated {self._tag} position.')
             return Pose(x=self.position_x,
                         y=self.position_y,
                         z=0,
@@ -214,7 +218,7 @@ class EnvironmentViewer:
     def scale(self, value):
         # TODO Automatisch als Prozent des Displays skalieren
         return int(value/3)
-    
+
     def draw_field(self, window,
                    window_height,
                    window_width,
@@ -229,35 +233,47 @@ class EnvironmentViewer:
         goal_area_height = self.scale(150)
         penalty_area_width = self.scale(600)
         penalty_area_height = self.scale(300)
-        print('Feld wird geladen...')
         # background
         window.fill(color_background)
         # field
-        pygame.draw.rect(window, color_background, Rect(edge, edge, window_width - 2 * edge, window_height - 2 * edge))
+        rect_field = Rect(edge,
+                          edge,
+                          window_width - 2*edge,
+                          window_height - 2*edge)
+        pygame.draw.rect(window, color_background, rect_field)
         # goal self
-        pygame.draw.rect(window, color_goal, Rect(window_width/2 - goal_size_y/2,
-                                                0,
-                                                goal_size_y,
-                                                edge))
+        rect_goal_self = Rect(window_width/2 - goal_size_y/2,
+                              0,
+                              goal_size_y,
+                              edge)
+        pygame.draw.rect(window, color_goal, rect_goal_self)
         # goal enemy
-        pygame.draw.rect(window, color_goal, Rect(window_width/2 - goal_size_y/2,
-                                                window_height-edge,
-                                                goal_size_y,
-                                                edge))
+        rect_goal_enemy = Rect(window_width/2 - goal_size_y/2,
+                               window_height-edge,
+                               goal_size_y,
+                               edge)
+        pygame.draw.rect(window, color_goal, rect_goal_enemy)
         # center circle
-        pygame.draw.circle(window, color_line, (window_width/2, window_height/2), window_width/6, line_thickness)
+        pygame.draw.circle(window, color_line,
+                           (window_width/2, window_height/2),
+                           window_width/6, line_thickness)
         # touchline
-        pygame.draw.lines(window, color_line, True, [(edge, edge), 
-                                                        (edge, window_height-edge),
-                                                        (window_width-edge, window_height-edge),
-                                                        (window_width-edge, edge)], line_thickness)
+        touchlines = [(edge, edge),
+                      (edge, window_height-edge),
+                      (window_width-edge, window_height-edge),
+                      (window_width-edge, edge)]
+        pygame.draw.lines(window, color_line, True, touchlines, line_thickness)
         # center line
-        pygame.draw.line(window, color_line, (edge, window_height/2), (window_width-edge, window_height/2), line_thickness)
+        pygame.draw.line(window, color_line,
+                         (edge, window_height/2),
+                         (window_width-edge, window_height/2),
+                         line_thickness)
         # goal area self
-        pygame.draw.lines(window, color_line, False, [(window_width/2 - goal_area_width/2, edge),
-                                                        (window_width/2-goal_area_width/2, edge + goal_area_height),
-                                                        (window_width/2+goal_area_width/2, edge + goal_area_height),
-                                                        (window_width/2+goal_area_width/2, edge)], line_thickness)
+        goalarea_self = [(window_width/2-goal_area_width/2, edge),
+                                (window_width/2-goal_area_width/2, edge+goal_area_height),
+                                (window_width/2+goal_area_width/2, edge+goal_area_height),
+                                (window_width/2+goal_area_width/2, edge)]
+        pygame.draw.lines(window, color_line, False, goalarea_self, line_thickness)
         # goal area enemy
         pygame.draw.lines(window, color_line, False, [(window_width/2-goal_area_width/2, window_height-edge),
                                                         (window_width/2-goal_area_width/2, window_height - edge - goal_area_height),
@@ -273,13 +289,12 @@ class EnvironmentViewer:
                                                         (window_width/2-penalty_area_width/2, window_height - edge - penalty_area_height),
                                                         (window_width/2+penalty_area_width/2, window_height - edge - penalty_area_height),
                                                         (window_width/2+penalty_area_width/2, window_height - edge)], line_thickness)
-        print('Feld geladen.')
 
 
     def show(self):
 
         GREY_DARK = (30, 30, 30)
-        GREY_LIGHT = (50,50,50)
+        GREY_LIGHT = (50, 50, 50)
         BLACK = (0, 0, 0)
         WHITE = (155, 155, 155)
         ORANGE = (209, 134, 0)
@@ -294,12 +309,14 @@ class EnvironmentViewer:
         ball_size_x = self.scale(self._environment.ball.size_x)
         goal_size_y = self.scale(self._environment.goal_self.size_y)
 
-        print('Viewer wird initialisiert...')
         pygame.init()
-        pygame.mixer.init()
+        print('Viewer wird initialisiert...')
         pygame.display.set_caption("VectorEnvironmentViewer")
         window = pygame.display.set_mode((window_width, window_height))
         clock = pygame.time.Clock()
+
+        # thread = threading.Thread(target=window)
+        # thread.start()
 
         self_png_rotation = 0.0
         enemy_png_rotation = 0.0
@@ -310,19 +327,18 @@ class EnvironmentViewer:
         enemy_png = pygame.image.load("vector_without_background.png").convert_alpha()
         enemy_png = pygame.transform.scale(enemy_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
         enemy_png = pygame.transform.rotate(enemy_png, rotation_offset)
-        
-        self.draw_field(window, window_height, window_width,
-                        edge, line_thickness, goal_size_y, 
-                        GREY_DARK, GREY_LIGHT, BLACK)
 
         quit = False
 
         while not quit:
 
             for event in pygame.event.get():
-                # print(event)
                 if event.type == QUIT:
                     quit = True
+            
+            self.draw_field(window, window_height, window_width,
+                        edge, line_thickness, goal_size_y,
+                        GREY_DARK, GREY_LIGHT, BLACK)
 
             self_position_x = self.scale(self._environment.self.position_x)
             self_position_y = self.scale(self._environment.self.position_y)
@@ -359,11 +375,16 @@ class EnvironmentViewer:
             # print(f'Viewer: Self:{round(self_position_x*3)},{round(self_position_y*3)}'
             #       f'Painted Enemy at {round(enemy_position_x*3)},{enemy_position_y*3}'
             #       f'Painted Ball at {round(ball_position_x*3)},{ball_position_y*3}')
+            
+            #pygame.display.flip()
 
             pygame.display.update()
             clock.tick(frames_per_second)
+            time.sleep(0.001)
 
-        pygame.quit()
+
+        # pygame.quit()
+        print("Thread sollte funktionieren, wenn man das liest.")
 
 
 class EnvironmentTest():
@@ -373,37 +394,8 @@ class EnvironmentTest():
         environment_viewer = EnvironmentViewer(environment)
         environment_viewer_thread = threading.Thread(environment_viewer.show())
         environment_viewer_thread.start()
-
-    def test_custom_object(self, robot, environment):
-        print('+++CustomObject-Test+++')
-        # Erstellt die Wände
-        wall_left = robot.world.create_custom_fixed_object(
-            Pose(x=-environment._POSITION_START_X, y=environment._POSITION_START_Y, z=0, angle_z=degrees(0)), 
-            x_size_mm=environment.field_length, 
-            y_size_mm=environment.wall_thickness, 
-            z_size_mm=environment.field_window_height,
-            relative_to_robot=True)
-        wall_right = robot.world.create_custom_fixed_object(
-            Pose(x=-environment._POSITION_START_X, y=-environment._POSITION_START_Y, z=0, angle_z=degrees(0)), 
-            x_size_mm=environment.field_length, 
-            y_size_mm=environment.wall_thickness, 
-            z_size_mm=environment.field_window_height,
-            relative_to_robot=True)
-        wall_self = robot.world.create_custom_fixed_object(
-            Pose(x=-environment._POSITION_START_X, y=-environment._POSITION_START_Y, z=0, angle_z=degrees(90)), 
-            x_size_mm=environment.field_window_width, 
-            y_size_mm=environment.wall_thickness, 
-            z_size_mm=environment.field_window_height,
-            relative_to_robot=True)
-        wall_oponent = robot.world.create_custom_fixed_object(
-            Pose(x=-environment._POSITION_START_X, y=environment.field_length-environment._POSITION_START_Y, z=0, angle_z=degrees(90)), 
-            x_size_mm=environment.field_window_width, 
-            y_size_mm=environment.wall_thickness, 
-            z_size_mm=environment.field_window_height,
-            relative_to_robot=True)  
-        print("Alle Objekte:")
-        for obj in robot.world.all_objects:
-            print(obj)  
+        #environment_viewer_thread.join()
+        print("Test geht weiter!")
 
     def test_proximity(self, robot, environment):
         print('+++Proximity-Test:+++')
@@ -474,7 +466,6 @@ class EnvironmentTest():
                 # self.test_general(robot, environment)
                 # self.test_winkelformat(robot, environment)
                 self.test_proximity(robot, environment)
-                # self.test_custom_object(robot, environment)
 
             robot.disconnect()
 
