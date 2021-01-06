@@ -47,7 +47,6 @@ class VideoProcessingCloud():
     def detection(self, image, timestamp, environment):
 
         detection_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
-        found_ball = False
         found_vector = False
 
         # Display the results.
@@ -186,12 +185,12 @@ class TrackBall():
 
         while robot.camera.image_streaming_enabled():
 
+            timestamp = time.time()
             frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image), cv.COLOR_RGB2BGR)
 
             if frame is None:
                 break
 
-            timestamp = time.time()
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
             frame_threshold = cv.inRange(frame_HSV, (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V))
             frame_threshold = cv.erode(frame_threshold, None, iterations=2)
@@ -229,6 +228,9 @@ class TrackBall():
                     env.ball.position_x = estimated_x
                     env.ball.position_y = estimated_y
                     env.ball._last_seen = timestamp
+
+                else:
+                    rotation_to_ball = None
 
             # Frame in Fenster anzeigen
             cv.imshow(self.window_capture_name, frame)
