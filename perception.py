@@ -218,9 +218,12 @@ class TrackBall():
 
                     # Ball zu environment hinzufügen
                     # Distance = real radius * focallength / radius in the frame
+                    global rotation_to_ball
+                    
                     estimated_distance = (400*14.86)/radius
                     estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
-                    global rotation_to_ball = estimated_rotation_to_ball
+
+                    rotation_to_ball = estimated_rotation_to_ball
                     rotation_sum = env.self.rotation + estimated_rotation_to_ball
                     estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
                     estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
