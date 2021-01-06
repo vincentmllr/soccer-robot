@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import io
 
 import anki_vector
 from anki_vector.util import *
@@ -18,7 +19,6 @@ import cv2 as cv
 import imutils
 
 import environment as env
-import support_functions as sp
 
 
 MODEL_FILENAME = 'model_s1.pb'
@@ -31,6 +31,7 @@ rotation_to_ball = None
 
 class VideoProcessingCloud():
 
+
     # Verbindungsdaten laden
     def __init__(self):
 
@@ -38,48 +39,82 @@ class VideoProcessingCloud():
         self.prediction_key = "a9f0177e6df54a63a7d6cc9477c383f9"
         self.prediction_resource_id = "/subscriptions/f6e54442-3d5a-4083-ad0d-080f159ac33d/resourceGroups/Vision/providers/Microsoft.CognitiveServices/accounts/Vector"
         self.project_id = "d2693bf6-e18a-414f-bdba-2851847b43a0"
-        self.publish_iteration_name = "Iteration3"
+        self.publish_iteration_name = "Iteration6"
 
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
-    # Bild an den Server zur Bildverarbeitung senden
-    def detection(self, image, timestamp, environment):
+        self.running = True
 
-        detection_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, image)
-        found_vector = False
+    # Bild verarbeiten
+    def detection(self, robot, environment):
+        # Fenster wird erstellt
+        window_name = "Enemy Detection"
+        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
+        cv.resizeWindow(window_name, 500, 490)
 
-        # Display the results.
-        for prediction in detection_results.predictions:
-            print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
-                prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
+        while robot.camera.image_streaming_enabled():
+            # Bild wird aufgenommen und vorbereitet
+            t = time.time()
+            image = robot.camera.latest_image.raw_image
+            width, height = image.size
+            byte_image = take_picture_to_byte(image)
+            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
 
-            # TODO Anpassen der Abstandsschätzung
-            if prediciton.tag_name == 'Vector' and found_vector == False:
-                if prediction.probability > 0.4:
-                    estimated_distance = (650*14.86)/prediction.bounding_box.height
+            # Bild wird an Server gesendet
+            prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
+            elapsed = time.time()-t
 
-                    estimated_rotation_to_ball = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
-                    rotation_sum = env.self.rotation + estimated_rotation_to_ball
+            found_vector = False
 
-                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+            # Anzeigen der Ergebnisse
+            for prediction in prediction_results.predictions:
+                if prediction.probability > 0.2:
+                    print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
+                        prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
 
-                    env.enemy.position_x = estimated_x
-                    env.enemy.position_y = estimated_y
-                    env.enemy._last_seen = timestamp
+                # Filtern der Ergebnisse
+                if prediction.tag_name == 'Vector' and found_vector == False:
+                    if prediction.probability > 0.4:
 
-                    found_vector = True
-                    print("Vector detected. Estimated position: " + estimated_x + ", " + estimated_y + ". Timestamp: " + picture_timestamp)
+                        # Eckpunkte des Rechteck bestimmen
+                        # Rechteck zeichnen
+                        ol = (prediction.bounding_box.left * width,prediction.bounding_box.top * height)
+                        ur = ((prediction.bounding_box.left + prediction.bounding_box.width) * width, (width,prediction.bounding_box.top - prediction.bounding_box.height) * height)
+                        color = (0, 0, 255)
+                        cv.rectangle(frame, ol, ur, color)
+
+                        # Berechnen der Position des Gegners
+                        estimated_distance = (650*14.86)/(prediction.bounding_box.height * height)
+                        estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                        rotation_sum = env.self.rotation + estimated_rotation_to_enemy
+
+                        estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                        estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+
+                        # Hinzufügen zu Environment
+                        env.enemy.position_x = estimated_x
+                        env.enemy.position_y = estimated_y
+                        env.enemy._last_seen = t
+
+                        found_vector = True
+
+                # Anzeige des Bildes mit Ergebnis
+                cv.imshow(window_name, frame)
+
+                # q Drücken zum schließen
+                key = cv.waitKey(10)
+                if key == ord('q') or key == 27:
+                    break
 
 
 # Offline Bildverarbeitung mit TensorFlow
-# TODO Implementierung Environment
 class VideoProcessingTF():
 
     INPUT_TENSOR_NAME = 'image_tensor:0'
     OUTPUT_TENSOR_NAMES = ['detected_boxes:0', 'detected_scores:0', 'detected_classes:0']
 
+    # Laden des Models
     def __init__(self, model_filename):
         graph_def = tf.compat.v1.GraphDef()
         with open(model_filename, 'rb') as f:
@@ -89,19 +124,69 @@ class VideoProcessingTF():
         with self.graph.as_default():
             tf.import_graph_def(graph_def, name='')
 
-        # Get input shape
         with tf.compat.v1.Session(graph=self.graph) as sess:
             self.input_shape = sess.graph.get_tensor_by_name(self.INPUT_TENSOR_NAME).shape.as_list()[1:3]
 
-    def predict_image(self, image, picture_timestamp, environment):
-        image = image.convert('RGB') if image.mode != 'RGB' else image
-        image = image.resize(self.input_shape)
+    # Methode zu Verarbeitung der Bilddaten von Vektor
+    def detection(self, robot, environment):
+        window_name = "Enemy Detection"
+        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
+        cv.resizeWindow(window_name, 500, 490)
 
-        inputs = np.array(image, dtype=np.float32)[np.newaxis, :, :, :]
-        with tf.compat.v1.Session(graph=self.graph) as sess:
-            output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
-            outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
-            return outputs
+        while robot.camera.image_streaming_enabled():
+            # Aufnehmen des Bildes und Umwandlung in verschiedene Formate
+            t = time.time()
+            image = robot.camera.latest_image.raw_image
+            width, height = image.size
+            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+            image = image.convert('RGB') if image.mode != 'RGB' else image
+            image = image.resize(self.input_shape)
+
+            # Bild wird verarbeitet
+            inputs = np.array(image, dtype=np.float32)[np.newaxis, :, :, :]
+            with tf.compat.v1.Session(graph=self.graph) as sess:
+                output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
+                outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
+                elapsed = time.time() - t
+                print("Duration: ", elapsed)
+
+                # Ergebnisliste wird zerlegt
+                result_array = outputs.pop(0)
+                probability_array = outputs.pop(0)
+
+                if probability_array[0] > 0.6:
+
+                    # Eckpunkte des Rechteck bestimmen
+                    # Rechteck zeichnen
+                    result = result_array[0]
+                    ol = (int(result[0] * width), int(result[1] * height))
+                    ur = (int(result[2] * width), int(result[3] * height))
+                    color = (0, 0, 255)
+                    cv.rectangle(frame, ol, ur, color)
+
+                    # Berechnen der Position des Gegners
+                    enemy_width = (result[0] - result[2])
+                    enemy_height = (result[1] - result[3])
+                    estimated_distance = (650*14.86)/(enemy_height * height)
+                    estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
+                    rotation_sum = env.self.rotation + estimated_rotation_to_enemy
+
+                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+
+                    # Hinzufügen zum Environment
+                    env.enemy.position_x = estimated_x
+                    env.enemy.position_y = estimated_y
+                    env.enemy._last_seen = t
+
+                # Bild mit Rechteck anzeigen
+                cv.imshow(window_name, frame)
+
+                # q Drücken zum schließen    
+                key = cv.waitKey(10)
+                if key == ord('q') or key == 27:
+                    break    
+            
 
 
 # init_camera_feed muss davor ausführen
@@ -244,32 +329,19 @@ class TrackBall():
             if key == ord('q') or key == 27:
                 break
 
-
+# Aktiviert Offline oder Online Erkennung von Gegner
 def detect_object(robot, environment, mode):
+    if robot.camera.image_streaming_enabled() is False:
+        robot.camera.init_camera_feed()
 
     if mode == "online":
         videoprocessor = VideoProcessingCloud()
-
-        while True:
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            byte_image = take_picture_to_byte(image)
-            videoprocessor.detection(byte_image, t, environment)
-            elapsed = time.time() - t
-
-            print('Duration:', elapsed)
+        videoprocessor.detection(robot, environment)
 
     elif mode == "offline":
-        od_model = VideoProcessingTF(MODEL_FILENAME)
+        videoprocessor = VideoProcessingTF(MODEL_FILENAME)
+        videoprocessor.detection(robot, environment)
 
-        while True:
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            result = od_model.predict_image(image, t, environment)
-            elapsed = time.time() - t
-
-            print(result)
-            print("Duration: ", elapsed)
 
 
 # Aktivieren der Ballerkennung
