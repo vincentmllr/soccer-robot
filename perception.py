@@ -274,7 +274,7 @@ def detect_object(robot, environment, mode):
 
 # Aktivieren der Ballerkennung
 def detect_ball(robot, environment):
-    robot.init_camera_feed()
+    robot.camera.init_camera_feed()
     bt = TrackBall()
     bt.start_tracking(robot, environment)
 
