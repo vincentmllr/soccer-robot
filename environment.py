@@ -402,11 +402,11 @@ class EnvironmentTest():
         # environment_viewer_thread = threading.Thread(environment_viewer.show())
         # environment_viewer_thread.start()
         #environment_viewer_thread.join()
-        root = Tk()
-        app = environment_viewer.TestWindow(root)
-        root.wm_title("Testfenster")
+        fenster = Tk()
+        app = environment_viewer.TestWindow(fenster)
+        fenster.wm_title("Testfenster")
         #Show window
-        root.mainloop()
+        fenster.mainloop()
 
         #print("Test geht weiter!")
 
