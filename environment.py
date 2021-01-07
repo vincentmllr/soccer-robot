@@ -6,6 +6,8 @@ import pygame
 from pygame.locals import Rect, QUIT
 import threading
 import math
+import tkinter
+from tkinter import *
 
 NAME = 'Vector-N8G2'
 IP = '192.168.0.189'
@@ -140,7 +142,7 @@ class EnvironmentObject():
             self._self.rotation = rotation
             self._self.last_seen = time.time()
             # print(f'Updated {self._tag} position.')
-            return Pose(x=self.position_x,
+            return Pose(x=self.position_x, # TODO Korrigieren
                         y=self.position_y,
                         z=0,
                         angle_z=anki_vector.util.Angle(degrees=self._rotation))
@@ -211,6 +213,12 @@ class EnvironmentObject():
 
 
 class EnvironmentViewer:
+
+    class TestWindow(Frame):
+
+        def __init__(self, master=None):
+            Frame.__init__(self, master)
+            self.master = master
 
     def __init__(self, environment):
         self._environment = environment
@@ -289,7 +297,6 @@ class EnvironmentViewer:
                                                         (window_width/2-penalty_area_width/2, window_height - edge - penalty_area_height),
                                                         (window_width/2+penalty_area_width/2, window_height - edge - penalty_area_height),
                                                         (window_width/2+penalty_area_width/2, window_height - edge)], line_thickness)
-
 
     def show(self):
 
@@ -392,10 +399,16 @@ class EnvironmentTest():
     def test_viewer(self, environment):
         print('+++ViewerTest+++')
         environment_viewer = EnvironmentViewer(environment)
-        environment_viewer_thread = threading.Thread(environment_viewer.show())
-        environment_viewer_thread.start()
+        # environment_viewer_thread = threading.Thread(environment_viewer.show())
+        # environment_viewer_thread.start()
         #environment_viewer_thread.join()
-        print("Test geht weiter!")
+        root = Tk()
+        app = environment_viewer.TestWindow(root)
+        root.wm_title("Testfenster")
+        #Show window
+        root.mainloop()
+
+        #print("Test geht weiter!")
 
     def test_proximity(self, robot, environment):
         print('+++Proximity-Test:+++')
