@@ -196,6 +196,7 @@ def play_offensive(env, robot):
         robot.behavior.turn_in_place(degrees(-45))
     # danach wird wieder look_for_ball()aufgerufen
 
+
 def play_defensive(env, robot):
     '''Vector fährt 5cm vor eigenes Tor und dreht sich Richtung Ball
     '''
@@ -221,6 +222,39 @@ def play_defensive(env, robot):
     
     pose = Pose(x=(0 - env._POSITION_START_X), y=(500 - env._POSITION_START_Y), z=0, angle_z=degrees(0))
     robot.behavior.go_to_pose(pose)
+
+    # Verteidigung im Tor:
+    # Vector sucht in einem 180° Winkel vor ihm
+    # findet er ihn nicht, fährt er 20cm vor und sucht analog (insgesamt 3x)
+    # hat er ihn gefunden, wird play_offensive() aufgerufen
+    # andernfalls wird look_for_ball() aufgerufen
+    ball_is_seen = env.ball.is_seen()
+    if not ball_is_seen:
+        robot.behavior.turn_in_place(degrees(-45))
+        time.sleep(0.1) # Verzögerung Kamera-Feed ausgleichen
+        ball_is_seen = env.ball.is_seen()
+    i = 0
+    while not ball_is_seen and (i < 3):
+        
+        robot.behavior.turn_in_place(degrees(90))
+        time.sleep(0.1) # Verzögerung Kamera-Feed ausgleichen
+        ball_is_seen = env.ball.is_seen()
+        if not ball_is_seen:
+            robot.behavior.turn_in_place(degrees(-45))
+            time.sleep(0.1) # Verzögerung Kamera-Feed ausgleichen
+            if not ball_is_seen:
+                robot.behavior.drive_straight(distance_mm(200), speed_mmps(500))
+                ball_is_seen = env.ball.is_seen()
+                if not ball_is_seen:
+                    robot.behavior.turn_in_place(degrees(-45))
+                    time.sleep(0.1) # Verzögerung Kamera-Feed ausgleichen
+                    ball_is_seen = env.ball.is_seen()
+        i = i + 1
+    if ball_is_seen:
+        play_offensive(env, robot)
+    else:
+        look_for_ball(env, robot)
+
 
 def turning_angel_vector(env, endposition_x, endposition_y):
     '''Berechnet Winkel, um den sich Vector auf der Stelle drehen muss,
@@ -251,7 +285,6 @@ def turning_angel_vector(env, endposition_x, endposition_y):
         turning_angle = turning_angle - 360  # Drehung nicht mehr als 180 Grad
 
     return turning_angle
-
 
 
 def distance_average(env, robot):
