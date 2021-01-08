@@ -214,11 +214,12 @@ class EnvironmentObject():
 
 class EnvironmentViewer:
 
-    class TestWindow(Frame):
+    class TestWindow():
 
-        def __init__(self, master=None):
-            Frame.__init__(self, master)
+        def __init__(self, master):
             self.master = master
+            self.frame = tkinter.Frame(self.master)
+            self.master.wm_title("ViewerTest")
 
     def __init__(self, environment):
         self._environment = environment

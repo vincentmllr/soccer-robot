@@ -7,7 +7,7 @@ import perception
 import action
 import environment
 import time
-from tkinter import *
+import tkinter
 
 NAME = "Vector-N8G2"
 IP = "192.168.0.189"
@@ -32,14 +32,14 @@ def main():
     with behavior.ReserveBehaviorControl(serial=SERIAL):
 
         # #+++EnvironmentViewerTestANFANG+++
-        viewer = environment.EnvironmentViewer(env)
-        # viewer_thread = threading.Thread(target=viewer.show())
-        # viewer_thread.start()
-        fenster = Tk()
-        app = viewer.TestWindow(fenster)
-        fenster.wm_title("Testfenster")
-        #Show window
-        fenster.mainloop()
+        def show_viewer():
+            viewer = environment.EnvironmentViewer()
+            fenster = tkinter.Tk()
+            app = viewer.TestWindow(fenster)
+            fenster.mainloop()
+
+        viewer_thread = threading.Thread(target=show_viewer())
+        viewer_thread.start()
         # #+++EnvironmentViewerTestENDE+++
 
         detect_ball_Thread = threading.Thread(target=perception.detect_ball, args=[robot, env])
