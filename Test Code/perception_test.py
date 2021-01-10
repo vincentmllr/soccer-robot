@@ -2,7 +2,7 @@ import os
 import time
 import math
 import io
-
+import openCV_test
 
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.customvision.training import CustomVisionTrainingClient
@@ -183,8 +183,6 @@ def detect_object(mode):
 
     if mode == "online":
         videoprocessor = VideoProcessingCloud()
-
-    
         videoprocessor.detection()
         print('Duration:', elapsed)
 
@@ -192,8 +190,25 @@ def detect_object(mode):
         od_model = VideoProcessingTF(MODEL_FILENAME)
         od_model.predict_image()
 
-def perception_test()
+
+def test_perception():
+
+    modus = None
+    while modus is None:
+        print("Drücke für offline Bildererkennung (1), online Bilderkennung (2), offline Ballerkennung (3), Abrruch (4)")
+        print("Ballerkennung funktioniert mit Webcam, die anderen mit einem statischen Bild")
+        modus = input()
+        if modus == "1":
+            detect_object("offline")  
+        elif modus == "2":
+            detect_object("online")  
+        elif modus == "3":
+            openCV_test.run()
+        elif modus == "4":
+            break
+        else:
+            modus = None
+
 
 if __name__ == "__main__":
-    detect_object("offline")
-
+    test_perception()
