@@ -192,6 +192,7 @@ def detect_object(mode):
         od_model = VideoProcessingTF(MODEL_FILENAME)
         od_model.predict_image()
 
+def perception_test()
 
 if __name__ == "__main__":
     detect_object("offline")

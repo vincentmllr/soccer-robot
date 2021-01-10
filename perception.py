@@ -20,10 +20,11 @@ import imutils
 
 import environment as env
 
-
+SERIAL = "008014c1"
 MODEL_FILENAME = 'model_s1.pb'
 LABELS_FILENAME = 'labels.txt'
 rotation_to_ball = None
+
 
 
 # Klasse zur Bildverarbeitung online
@@ -363,8 +364,6 @@ def take_picture_to_byte(image):
 def current_rotation_to_ball():
     return rotation_to_ball
 
-
-if __name__ == "__main__":
     args = anki_vector.util.parse_command_args()
     with anki_vector.Robot(args.serial) as robot:
         environment = env.Environment(robot,
@@ -381,3 +380,49 @@ if __name__ == "__main__":
         # detect_object(robot, environment, "offline")
 
         detect_ball(robot, environment)
+
+ 
+
+    
+def test_perception():
+
+    def start_robot():
+        robot = anki_vector.Robot(serial=SERIAL)
+        environment = env.Environment(robot,
+                                field_length_x=2000.0,
+                                field_length_y=1000.0,
+                                goal_width=200.0,
+                                ball_diameter=40.0,
+                                position_start_x=100.0,
+                                position_start_y=500.0,
+                                enable_environment_viewer=False)
+        robot.connect()
+        robot.camera.init_camera_feed()
+        robot.behavior.set_eye_color(0.05, 1.0)
+        robot.behavior.set_head_angle(degrees(0))
+        return (robot, environment)
+
+    print("Für einen Test der Perception ohne Vector bitte die Testversion im Ordner Test Code nutzen")
+    modus = None
+    while modus is None:
+        print("Drücke für offline Bildererkennung (1), online Bilderkennung (2), offline Ballerkennung (3), Abrruch (4)")
+        modus = input()
+        if modus == "1":
+            robot, environment = start_robot()
+            detect_object(robot, environment, "offline")  
+        elif modus == "2":
+            robot, environment = start_robot()
+            detect_object(robot, environment, "online")  
+        elif modus == "3":
+            robot, environment = start_robot()
+            detect_ball(robot, environment)
+        elif modus == "4":
+            break
+        else:
+            modus = None
+
+
+
+
+if __name__ == "__main__":
+    test_perception()
