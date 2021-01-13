@@ -23,13 +23,12 @@ import environment as env
 SERIAL = "008014c1"
 MODEL_FILENAME = 'model_s1.pb'
 LABELS_FILENAME = 'labels.txt'
+FOCALLENGTH = 14.86
 rotation_to_ball = None
-
 
 
 # Klasse zur Bildverarbeitung online
 class VideoProcessingCloud():
-
 
     # Verbindungsdaten laden
     def __init__(self):
@@ -84,7 +83,7 @@ class VideoProcessingCloud():
                         cv.rectangle(frame, ol, ur, color)
 
                         # Berechnen der Position des Gegners
-                        estimated_distance = (650*14.86)/(prediction.bounding_box.height * height)
+                        estimated_distance = (650*FOCALLENGTH)/(prediction.bounding_box.height * height)
                         estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
                         rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
@@ -166,7 +165,7 @@ class VideoProcessingTF():
                     # Berechnen der Position des Gegners
                     enemy_width = (result[0] - result[2])
                     enemy_height = (result[1] - result[3])
-                    estimated_distance = (650*14.86)/(enemy_height * height)
+                    estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
                     estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
                     rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
@@ -187,85 +186,294 @@ class VideoProcessingTF():
                     break    
             
 
+class MaskWindow():
+    def __init__(self, window_name, low_H, low_S, low_V, high_H, high_S, high_V, is_master):
+        self.window_name = window_name
+        self.low_H = low_H
+        self.low_S = low_S
+        self.low_V = low_V
+        self.high_H = high_H
+        self.high_S = high_S
+        self.high_V = high_V
+        self.max_value_H = 360//2
+        self.max_value = 255
+        self.low_H_name = 'Low H'
+        self.low_S_name = 'Low S'
+        self.low_V_name = 'Low V'
+        self.high_H_name = 'High H'
+        self.high_S_name = 'High S'
+        self.high_V_name = 'High V'
+        self.is_master = is_master
+        
+    def get_values(self):
+        return (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V)
+    
+    def preprocess(self, frame_HSV):
+        frame_threshold = cv.inRange(frame_HSV, (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V))
+        frame_threshold = cv.erode(frame_threshold, None, iterations=2)
+        frame_threshold = cv.dilate(frame_threshold, None, iterations=2)
+        return frame_threshold
+
+    def calculate_rotation(self, goal_rotation, dist, x, y, left_angle, right_angle, width):
+        rotation_to_z = None
+        if right_angle > 90:
+            rotation_to_z = goal_rotation - 90 - left_angle + (width/2 - x)
+        if right_angle < 90:
+            rotation_to_z = goal_rotation - 90 + right_angle + (width/2 - x)
+
+        rotation_to_z = rotation_to_z % 360
+        return rotation_to_z
+    
+    def round_to_interval(self, val):
+        val = max(val, -1)
+        val = min(val, 1)
+        return val
+
+    def find_ball(self, frame_threshold, frame):
+        # find contours in the mask and initialize the current
+        # (x, y) center of the ball
+        cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
+            cv.CHAIN_APPROX_SIMPLE)
+        cnts = imutils.grab_contours(cnts)
+        center = None
+
+        # only proceed if at least one contour was found
+        if len(cnts) > 0:
+
+            # Größte Kontur finden
+            c = max(cnts, key=cv.contourArea)
+            ((x, y), radius) = cv.minEnclosingCircle(c)
+            M = cv.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+            if radius > 10:
+                # Kreis malen
+                cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
+                cv.circle(frame, center, 5, (0, 0, 255), -1)
+
+                # Ball zu environment hinzufügen
+                # Distance = real radius * focallength / radius in the frame
+                global rotation_to_ball
+                
+                estimated_distance = (400*FOCALLENGTH)/radius
+                estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
+
+                rotation_to_ball = estimated_rotation_to_ball
+                rotation_sum = env.self.rotation + estimated_rotation_to_ball
+                estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+
+                env.ball.position_x = estimated_x
+                env.ball.position_y = estimated_y
+                env.ball._last_seen = timestamp
+
+            else:
+                rotation_to_ball = None
+
+    def find_goal(self, frame_threshold, frame, width, goal_rotation):
+
+        cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
+            cv.CHAIN_APPROX_SIMPLE)
+        cnts = imutils.grab_contours(cnts)
+        center1 = None
+        center2 = None
+
+        # Nur weiter machen wenn min zwei Konturen gefunden wurden
+        if len(cnts) > 1:
+
+            # finde die zwei größten Kreise
+            max_area = -1
+            second_max_area = -1
+            c1 = None
+            c2 = None
+            for i in range(len(cnts)):
+                area = cv.contourArea(cnts[i])
+                if area > max_area and second_max_area <= max_area:
+                    c2 = c1
+                    c1 = cnts[i]
+                    second_max_area = max_area
+                    max_area = area
+                elif area > second_max_area:
+                    c2 = cnts[i]
+                    second_max_area = area
+
+            ((x1, y1), radius1) = cv.minEnclosingCircle(c1)
+            M1 = cv.moments(c1)
+            center1 = (int(M1["m10"] / M1["m00"]), int(M1["m01"] / M1["m00"]))
+            ((x2, y2), radius2) = cv.minEnclosingCircle(c2)
+            M2 = cv.moments(c2)
+            center2 = (int(M2["m10"] / M2["m00"]), int(M2["m01"] / M2["m00"]))
+
+            # Der linke Kreis ist immer Nummer 1
+            if x1 > x2:
+                x3, y3, radius3, M3 = x2, y2, radius2, M2
+                x2, y2, radius2, M2 = x1, y1, radius1, M1
+                x1, y1, radius1, M1 = x3, y3, radius3, M3
+
+
+            # Nur weiter machen bei einer Mindestgröße
+            if radius1 > 10 and radius2 > 10:
+
+                cv.circle(frame, (int(x1), int(y1)), int(radius1),
+                    (255, 0, 0), 2)
+                cv.circle(frame, center1, 5, (0, 0, 255), -1)
+                
+                cv.circle(frame, (int(x2), int(y2)), int(radius2),
+                    (255, 0, 0), 2)
+                cv.circle(frame, center2, 5, (0, 0, 255), -1)
+
+                # Distanzberechnung mit ausgleich für die Höhe
+                dist_a = (400*FOCALLENGTH)/radius1
+                dist_b = (400*FOCALLENGTH)/radius2
+                dist_a = math.sqrt(math.pow(dist_a, 2) - 49)
+                dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
+                dist_c = 20
+
+                # Winkel aus Dreieck mit Markerpunkten und Kamera
+                pre_alpha = (pow(dist_a, 2) - pow(dist_b, 2) - pow(dist_c, 2)) / (-2 * dist_b * dist_c)
+                alpha = math.acos(self.round_to_interval(pre_alpha))
+                pre_beta = (pow(dist_b, 2) - pow(dist_a, 2) - pow(dist_c, 2)) / (-2 * dist_a * dist_c)
+                beta = math.acos(self.round_to_interval(pre_beta))
+                delta = 180 - beta
+                epsilon = 180 - alpha
+
+                if goal_rotation == 180:
+                    if dist_a < dist_b:
+                        x_self = (math.sin(delta) * dist_a)
+                        vector_rotation = self.calculate_rotation(goal_rotation, dist_a, x1, y1, delta, beta, width)   
+                        if beta > 90:
+                            y_self = 400 - (math.cos(delta) * dist_a)
+                        elif beta < 90:
+                            y_self = 400 + (math.cos(beta) * dist_a)
+                    elif dist_b < dist_a:
+                        x_self = (math.sin(epsilon) * dist_b)
+                        vector_rotation = self.calculate_rotation(goal_rotation, dist_b, x2, y2, alpha, epsilon, width) 
+                        if alpha > 90:
+                            y_self = 600 + (math.cos(delta) * dist_b)
+                        elif alpha < 90:
+                            y_self = 600 - (math.cos(beta) * dist_b)
+
+                elif goal_rotation == 0:
+                    if dist_a < dist_b:
+                        x_self = 1600 - (math.sin(delta) * dist_a)
+                        vector_rotation = self.calculate_rotation(goal_rotation, dist_a, x1, y1, delta, beta, width) 
+                        if beta > 90:
+                            y_self = 600 + (math.cos(delta) * dist_a)
+                        elif beta < 90:
+                            y_self = 600 - (math.cos(beta) * dist_a)
+                    elif dist_b < dist_a:
+                        x_self = 1600 - (math.sin(epsilon) * dist_b)
+                        vector_rotation = self.calculate_rotation(goal_rotation, dist_b, x2, y2, alpha, epsilon, width) 
+                        if alpha > 90:
+                            y_self = 400 - (math.cos(delta) * dist_b)
+                        elif alpha < 90:
+                            y_self = 400 + (math.cos(beta) * dist_b)   
+
+                env.position_x(x_self)
+                env.position_y(y_self)
+                env.rotation(vector_rotation)
+
+    def build_window(self):
+
+        if self.is_master == False:
+
+            def on_low_H_thresh_trackbar(val):
+                self.low_H = val
+                self.low_H = min(self.high_H-1, self.low_H)
+                cv.setTrackbarPos(self.low_H_name, self.window_name, self.low_H)
+
+            def on_high_H_thresh_trackbar(val):
+                self.high_H = val
+                self.high_H = max(self.high_H, self.low_H+1)
+                cv.setTrackbarPos(self.high_H_name, self.window_name, self.high_H)
+
+            def on_low_S_thresh_trackbar(val):
+                self.low_S = val
+                self.low_S = min(self.high_S-1, self.low_S)
+                cv.setTrackbarPos(self.low_S_name, self.window_name, self.low_S)
+
+            def on_high_S_thresh_trackbar(val):
+                self.high_S = val
+                self.high_S = max(self.high_S, self.low_S+1)
+                cv.setTrackbarPos(self.high_S_name, self.window_name, self.high_S)
+
+            def on_low_V_thresh_trackbar(val):
+                self.low_V = val
+                self.low_V = min(self.high_V-1, self.low_V)
+                cv.setTrackbarPos(self.low_V_name, self.window_name, self.low_V)
+
+            def on_high_V_thresh_trackbar(val):
+                self.high_V = val
+                self.high_V = max(self.high_V, self.low_V+1)
+                cv.setTrackbarPos(self.high_V_name, self.window_name, self.high_V)
+
+            cv.createTrackbar(self.low_H_name, self.window_name, self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
+            cv.createTrackbar(self.high_H_name, self.window_name, self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
+            cv.createTrackbar(self.low_S_name, self.window_name, self.low_S, self.max_value, on_low_S_thresh_trackbar)
+            cv.createTrackbar(self.high_S_name, self.window_name, self.high_S, self.max_value, on_high_S_thresh_trackbar)
+            cv.createTrackbar(self.low_V_name, self.window_name, self.low_V, self.max_value, on_low_V_thresh_trackbar)
+            cv.createTrackbar(self.high_V_name, self.window_name, self.high_V, self.max_value, on_high_V_thresh_trackbar)
+
+        elif self.is_master == True:
+
+            def trackbar_camera(val):
+                global show_window_camera
+                show_window_camera = val
+
+            def trackbar_ball(val):
+                global show_window_ball
+                show_window_ball = val
+
+            def trackbar_goal_self(val):
+                global show_window_goal_self
+                show_window_goal_self = val
+
+            def trackbar_goal_enemy(val):
+                global show_window_goal_enemy
+                show_window_goal_enemy = val
+
+            cv.createTrackbar("Vector Camera", self.window_name, 0, 1, trackbar_camera)
+            cv.createTrackbar("Ball Detection", self.window_name, 0, 1, trackbar_ball)
+            cv.createTrackbar("Goal Self", self.window_name, 0, 1, trackbar_goal_self)
+            cv.createTrackbar("Goal Enemy", self.window_name, 0, 1, trackbar_goal_enemy)
+
 
 # init_camera_feed muss davor ausführen
 # Klasse für einfache geometrische Ballerkennung
-class TrackBall():
+class VideoProcessingOpenCV():
 
-    max_value = 255
-    max_value_H = 360//2
-    low_H = 6
-    low_S = 104
-    low_V = 140
-    high_H = 60
-    high_S = 242
-    high_V = 195
-    window_capture_name = 'Vectors Camera'
-    window_detection_name = 'Object Detection'
-    low_H_name = 'Low H'
-    low_S_name = 'Low S'
-    low_V_name = 'Low V'
-    high_H_name = 'High H'
-    high_S_name = 'High S'
-    high_V_name = 'High V'
+    def __init__(self):
+        self.window_capture_name = 'Vectors Camera'
+        self.window_detection_name_ball = 'Ball Detection'
+        self.window_detection_name_goal_self = 'Goal Detection'
+        self.window_master_name = "Master"
 
     def start_tracking(self, robot, env):
 
-        def on_low_H_thresh_trackbar(val):
-            global low_H
-            global high_H
-            self.low_H = val
-            self.low_H = min(self.high_H-1, self.low_H)
-            cv.setTrackbarPos(self.low_H_name, self.window_detection_name, self.low_H)
-
-        def on_high_H_thresh_trackbar(val):
-            global low_H
-            global high_H
-            self.high_H = val
-            self.high_H = max(self.high_H, self.low_H+1)
-            cv.setTrackbarPos(self.high_H_name, self.window_detection_name, self.high_H)
-
-        def on_low_S_thresh_trackbar(val):
-            global low_S
-            global high_S
-            self.low_S = val
-            self.low_S = min(self.high_S-1, self.low_S)
-            cv.setTrackbarPos(self.low_S_name, self.window_detection_name, self.low_S)
-
-        def on_high_S_thresh_trackbar(val):
-            global low_S
-            global high_S
-            self.high_S = val
-            self.high_S = max(self.high_S, self.low_S+1)
-            cv.setTrackbarPos(self.high_S_name, self.window_detection_name, self.high_S)
-
-        def on_low_V_thresh_trackbar(val):
-            global low_V
-            global high_V
-            self.low_V = val
-            self.low_V = min(self.high_V-1, self.low_V)
-            cv.setTrackbarPos(self.low_V_name, self.window_detection_name, self.low_V)
-
-        def on_high_V_thresh_trackbar(val):
-            global low_V
-            global high_V
-            self.high_V = val
-            self.high_V = max(self.high_V, self.low_V+1)
-            cv.setTrackbarPos(self.high_V_name, self.window_detection_name, self.high_V)
-
         # Windows erstellen
         cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
-        cv.namedWindow(self.window_detection_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(self.window_detection_name, 500, 490)
-        cv.resizeWindow(self.window_capture_name, 600, 550)
+        cv.namedWindow(self.window_detection_name_ball, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.window_master_name, cv.WINDOW_NORMAL)
 
-        # Trackbars für die Bildeinstellung hinzufügen
-        cv.createTrackbar(self.low_H_name, self.window_detection_name , self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
-        cv.createTrackbar(self.high_H_name, self.window_detection_name , self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
-        cv.createTrackbar(self.low_S_name, self.window_detection_name , self.low_S, self.max_value, on_low_S_thresh_trackbar)
-        cv.createTrackbar(self.high_S_name, self.window_detection_name , self.high_S, self.max_value, on_high_S_thresh_trackbar)
-        cv.createTrackbar(self.low_V_name, self.window_detection_name , self.low_V, self.max_value, on_low_V_thresh_trackbar)
-        cv.createTrackbar(self.high_V_name, self.window_detection_name , self.high_V, self.max_value, on_high_V_thresh_trackbar)
+        exist_camera = True
+        exist_ball = True
+        exist_goal = True
+
+        cv.moveWindow(self.window_capture_name, 0, -100)
+        cv.moveWindow(self.window_detection_name_ball, 550, -1)
+        cv.moveWindow(self.window_detection_name_goal_self, 0, 230)
+        cv.moveWindow(self.window_master_name, 700, 0)
+
+        master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
+        master_trackbar.build_window()
+
+        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 140, 60, 242, 195, False)
+        mask_ball.build_window()
+
+        mask_goal = MaskWindow(self.window_detection_name_goal_self, 6, 104, 140, 60, 242, 195, False)
+        mask_goal.build_window()
+
 
         while robot.camera.image_streaming_enabled():
 
@@ -276,52 +484,58 @@ class TrackBall():
                 break
 
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-            frame_threshold = cv.inRange(frame_HSV, (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V))
-            frame_threshold = cv.erode(frame_threshold, None, iterations=2)
-            frame_threshold = cv.dilate(frame_threshold, None, iterations=2)
 
-            # finde Kreise
-            # (x, y) initialisieren
-            cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-            cnts = imutils.grab_contours(cnts)
-            center = None
+            # Maske erstellen
+            frame_threshold_ball = mask_ball.preprocess(frame_HSV)
+            frame_threshold_goal_self = mask_goal.preprocess(frame_HSV)
 
-            # Nur fortfahren, wenn mindestens ein Kreis gefunden wurde
-            if len(cnts) > 0:
+            mask_ball.find_ball(frame_threshold_ball, frame)
+            mask_goal.find_goal(frame_threshold_goal_self, frame, width, 180)
 
-                # Größte Kontur finden
-                c = max(cnts, key=cv.contourArea)
-                ((x, y), radius) = cv.minEnclosingCircle(c)
-                M = cv.moments(c)
-                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            cv.resizeWindow(self.window_capture_name, 550, 320)
+            cv.resizeWindow(self.window_detection_name_ball, 550, 350)
+            cv.resizeWindow(self.window_detection_name_goal_self, 550, 350)
 
-                if radius > 10:
-                    # Kreis malen
-                    cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
-                    cv.circle(frame, center, 5, (0, 0, 255), -1)
+            show_window_camera = cv.getTrackbarPos("Vector Camera", self.window_master_name)
+            show_window_ball = cv.getTrackbarPos("Ball Detection", self.window_master_name)
+            show_window_goal_self = cv.getTrackbarPos("Goal Self", self.window_master_name)
+            show_window_goal_enemy = cv.getTrackbarPos("Goal Enemy", self.window_master_name)
 
-                    # Ball zu environment hinzufügen
-                    # Distance = real radius * focallength / radius in the frame
-                    global rotation_to_ball
-                    
-                    estimated_distance = (400*14.86)/radius
-                    estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
+            if show_window_camera == 1 and exist_camera == True:
+                cv.imshow(self.window_capture_name, frame)
+            elif show_window_camera == 1 and exist_camera == False:
+                cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
+                mask_ball.build_window()
+                cv.moveWindow(self.window_capture_name, 0, -100)
+                exist_camera = True
+                cv.imshow(self.window_capture_name, frame)
+            elif show_window_camera == 0 and exist_camera == True:
+                cv.destroyWindow(self.window_capture_name)
+                exist_camera = False
 
-                    rotation_to_ball = estimated_rotation_to_ball
-                    rotation_sum = env.self.rotation + estimated_rotation_to_ball
-                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+            if show_window_ball == 1 and exist_ball == True:
+                cv.imshow(self.window_detection_name_ball, frame_threshold_ball)
+            elif show_window_ball == 1 and exist_ball == False:
+                cv.namedWindow(self.window_detection_name_ball, cv.WINDOW_NORMAL)
+                mask_ball.build_window()
+                cv.moveWindow(self.window_detection_name_ball, 0, -100)
+                exist_ball = True
+                cv.imshow(self.window_detection_name_ball, frame_threshold_ball)
+            elif show_window_ball == 0 and exist_ball == True:
+                cv.destroyWindow(self.window_detection_name_ball)
+                exist_ball = False
 
-                    env.ball.position_x = estimated_x
-                    env.ball.position_y = estimated_y
-                    env.ball._last_seen = timestamp
-
-                else:
-                    rotation_to_ball = None
-
-            # Frame in Fenster anzeigen
-            cv.imshow(self.window_capture_name, frame)
-            cv.imshow(self.window_detection_name, frame_threshold)
+            if show_window_goal_self == 1 and exist_goal == True:
+                cv.imshow(self.window_detection_name_goal_self, frame_threshold_goal_self)
+            elif show_window_goal_self == 1 and exist_goal == False:
+                cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
+                mask_goal.build_window()
+                cv.moveWindow(self.window_detection_name_goal_self, 0, -100)
+                exist_goal = True
+                cv.imshow(self.window_detection_name_goal_self, frame_threshold_goal_self)
+            elif show_window_goal_self == 0 and exist_goal == True:
+                cv.destroyWindow(self.window_detection_name_goal_self)
+                exist_goal = False
 
             # q Drücken zum schließen
             key = cv.waitKey(30)
@@ -329,7 +543,7 @@ class TrackBall():
                 break
 
 # Aktiviert Offline oder Online Erkennung von Gegner
-def detect_object(robot, environment, mode):
+def detect_enemy(robot, environment, mode):
     if robot.camera.image_streaming_enabled() is False:
         robot.camera.init_camera_feed()
 
@@ -342,13 +556,11 @@ def detect_object(robot, environment, mode):
         videoprocessor.detection(robot, environment)
 
 
-
 # Aktivieren der Ballerkennung
-def detect_ball(robot, environment):
+def detect_openCV(robot, environment):
     robot.camera.init_camera_feed()
-    bt = TrackBall()
+    bt = VideoProcessingOpenCV()
     bt.start_tracking(robot, environment)
-
 
 # Hilfsfunktion um Bild in Bytestrom umzuwandeln
 def take_picture_to_byte(image):
@@ -359,31 +571,10 @@ def take_picture_to_byte(image):
 
     return image_as_bytes
 
-
 # Winkel zwischen Vector und Ball zurückgeben
 def current_rotation_to_ball():
-    return rotation_to_ball
+    return rotation_to_ball 
 
-    args = anki_vector.util.parse_command_args()
-    with anki_vector.Robot(args.serial) as robot:
-        environment = env.Environment(robot,
-                                    field_length_x=2000.0,
-                                    field_length_y=1000.0,
-                                    goal_width=200.0,
-                                    ball_diameter=40.0,
-                                    position_start_x=100.0,
-                                    position_start_y=500.0,
-                                    enable_environment_viewer=False)
-        robot.camera.init_camera_feed()
-        robot.behavior.set_eye_color(0.05, 1.0)
-        robot.behavior.set_head_angle(degrees(0))
-        # detect_object(robot, environment, "offline")
-
-        detect_ball(robot, environment)
-
- 
-
-    
 def test_perception():
 
     def start_robot():
