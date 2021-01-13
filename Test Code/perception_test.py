@@ -2,7 +2,7 @@ import os
 import time
 import math
 import io
-import openCV_test
+
 
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.customvision.training import CustomVisionTrainingClient
@@ -16,6 +16,8 @@ import tensorflow as tf
 import numpy as np
 import cv2 as cv
 import imutils
+
+import openCV_test
 
 
 

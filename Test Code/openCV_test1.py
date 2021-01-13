@@ -1,192 +1,22 @@
-import os
-import time
-import math
-import io
-
-import anki_vector
-from anki_vector.util import *
-from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-from azure.cognitiveservices.vision.customvision.training import CustomVisionTrainingClient
-from azure.cognitiveservices.vision.customvision.training.models import ImageFileCreateEntry, Region
-from azure.cognitiveservices.vision.customvision.prediction import CustomVisionPredictionClient
-from msrest.authentication import ApiKeyCredentials
-from PIL import Image
-import PIL.Image
-import argparse
-import tensorflow as tf
-import numpy as np
+from __future__ import print_function
 import cv2 as cv
+import argparse
 import imutils
+import math
 
-import environment as env
+FOCALLENGTH = 4.25
+show_window_camera = 1
+show_window_ball = 1
+show_window_goal_self = 1
+show_window_goal_enemy = 1
 
-SERIAL = "008014c1"
-MODEL_FILENAME = 'model_s1.pb'
-LABELS_FILENAME = 'labels.txt'
-FOCALLENGTH = 14.86
-rotation_to_ball = None
-
-
-# Klasse zur Bildverarbeitung online
-class VideoProcessingCloud():
-
-    # Verbindungsdaten laden
-    def __init__(self):
-
-        self.ENDPOINT = "https://vector.cognitiveservices.azure.com/"
-        self.prediction_key = "a9f0177e6df54a63a7d6cc9477c383f9"
-        self.prediction_resource_id = "/subscriptions/f6e54442-3d5a-4083-ad0d-080f159ac33d/resourceGroups/Vision/providers/Microsoft.CognitiveServices/accounts/Vector"
-        self.project_id = "d2693bf6-e18a-414f-bdba-2851847b43a0"
-        self.publish_iteration_name = "Iteration6"
-
-        self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
-        self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
-
-        self.running = True
-
-    # Bild verarbeiten
-    def detection(self, robot, environment):
-        # Fenster wird erstellt
-        window_name = "Enemy Detection"
-        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_name, 500, 490)
-
-        while robot.camera.image_streaming_enabled():
-            # Bild wird aufgenommen und vorbereitet
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            width, height = image.size
-            byte_image = take_picture_to_byte(image)
-            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
-
-            # Bild wird an Server gesendet
-            prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
-            elapsed = time.time()-t
-
-            found_vector = False
-
-            # Anzeigen der Ergebnisse
-            for prediction in prediction_results.predictions:
-                if prediction.probability > 0.2:
-                    print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
-                        prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
-
-                # Filtern der Ergebnisse
-                if prediction.tag_name == 'Vector' and found_vector == False:
-                    if prediction.probability > 0.4:
-
-                        # Eckpunkte des Rechteck bestimmen
-                        # Rechteck zeichnen
-                        ol = (prediction.bounding_box.left * width,prediction.bounding_box.top * height)
-                        ur = ((prediction.bounding_box.left + prediction.bounding_box.width) * width, (width,prediction.bounding_box.top - prediction.bounding_box.height) * height)
-                        color = (0, 0, 255)
-                        cv.rectangle(frame, ol, ur, color)
-
-                        # Berechnen der Position des Gegners
-                        estimated_distance = (650*FOCALLENGTH)/(prediction.bounding_box.height * height)
-                        estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
-                        rotation_sum = env.self.rotation + estimated_rotation_to_enemy
-
-                        estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                        estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
-
-                        # Hinzufügen zu Environment
-                        env.enemy.position_x = estimated_x
-                        env.enemy.position_y = estimated_y
-                        env.enemy._last_seen = t
-
-                        found_vector = True
-
-                # Anzeige des Bildes mit Ergebnis
-                cv.imshow(window_name, frame)
-
-                # q Drücken zum schließen
-                key = cv.waitKey(10)
-                if key == ord('q') or key == 27:
-                    break
+al_camera = False
+al_ball = False
+al_goal_self = False
 
 
-# Offline Bildverarbeitung mit TensorFlow
-class VideoProcessingTF():
+class Mask_window():
 
-    INPUT_TENSOR_NAME = 'image_tensor:0'
-    OUTPUT_TENSOR_NAMES = ['detected_boxes:0', 'detected_scores:0', 'detected_classes:0']
-
-    # Laden des Models
-    def __init__(self, model_filename):
-        graph_def = tf.compat.v1.GraphDef()
-        with open(model_filename, 'rb') as f:
-            graph_def.ParseFromString(f.read())
-
-        self.graph = tf.Graph()
-        with self.graph.as_default():
-            tf.import_graph_def(graph_def, name='')
-
-        with tf.compat.v1.Session(graph=self.graph) as sess:
-            self.input_shape = sess.graph.get_tensor_by_name(self.INPUT_TENSOR_NAME).shape.as_list()[1:3]
-
-    # Methode zu Verarbeitung der Bilddaten von Vektor
-    def detection(self, robot, environment):
-        window_name = "Enemy Detection"
-        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_name, 500, 490)
-
-        while robot.camera.image_streaming_enabled():
-            # Aufnehmen des Bildes und Umwandlung in verschiedene Formate
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            width, height = image.size
-            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
-            image = image.convert('RGB') if image.mode != 'RGB' else image
-            image = image.resize(self.input_shape)
-
-            # Bild wird verarbeitet
-            inputs = np.array(image, dtype=np.float32)[np.newaxis, :, :, :]
-            with tf.compat.v1.Session(graph=self.graph) as sess:
-                output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
-                outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
-                elapsed = time.time() - t
-                print("Duration: ", elapsed)
-
-                # Ergebnisliste wird zerlegt
-                result_array = outputs.pop(0)
-                probability_array = outputs.pop(0)
-
-                if probability_array[0] > 0.6:
-
-                    # Eckpunkte des Rechteck bestimmen
-                    # Rechteck zeichnen
-                    result = result_array[0]
-                    ol = (int(result[0] * width), int(result[1] * height))
-                    ur = (int(result[2] * width), int(result[3] * height))
-                    color = (0, 0, 255)
-                    cv.rectangle(frame, ol, ur, color)
-
-                    # Berechnen der Position des Gegners
-                    enemy_width = (result[0] - result[2])
-                    enemy_height = (result[1] - result[3])
-                    estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
-                    estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
-                    rotation_sum = env.self.rotation + estimated_rotation_to_enemy
-
-                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
-
-                    # Hinzufügen zum Environment
-                    env.enemy.position_x = estimated_x
-                    env.enemy.position_y = estimated_y
-                    env.enemy._last_seen = t
-
-                # Bild mit Rechteck anzeigen
-                cv.imshow(window_name, frame)
-
-                # q Drücken zum schließen    
-                key = cv.waitKey(10)
-                if key == ord('q') or key == 27:
-                    break    
-            
-
-class MaskWindow():
     def __init__(self, window_name, low_H, low_S, low_V, high_H, high_S, high_V, is_master):
         self.window_name = window_name
         self.low_H = low_H
@@ -205,6 +35,7 @@ class MaskWindow():
         self.high_V_name = 'High V'
         self.is_master = is_master
         
+
     def get_values(self):
         return (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V)
     
@@ -239,48 +70,37 @@ class MaskWindow():
 
         # only proceed if at least one contour was found
         if len(cnts) > 0:
-
-            # Größte Kontur finden
+            # find the largest contour in the mask, then use
+            # it to compute the minimum enclosing circle and
+            # centroid
             c = max(cnts, key=cv.contourArea)
             ((x, y), radius) = cv.minEnclosingCircle(c)
             M = cv.moments(c)
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
+            # only proceed if the radius meets a minimum size
             if radius > 10:
-                # Kreis malen
-                cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
+                # draw the circle and centroid on the frame,
+                # then update the list of tracked points
+                cv.circle(frame, (int(x), int(y)), int(radius),
+                    (0, 255, 255), 2)
                 cv.circle(frame, center, 5, (0, 0, 255), -1)
-
-                # Ball zu environment hinzufügen
-                # Distance = real radius * focallength / radius in the frame
-                global rotation_to_ball
-                
-                estimated_distance = (400*FOCALLENGTH)/radius
-                estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
-
-                rotation_to_ball = estimated_rotation_to_ball
-                rotation_sum = env.self.rotation + estimated_rotation_to_ball
-                estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
-
-                env.ball.position_x = estimated_x
-                env.ball.position_y = estimated_y
-                env.ball._last_seen = timestamp
-
-            else:
-                rotation_to_ball = None
+                dist = (400*FOCALLENGTH)/radius
+                estimated_rotation_to_ball = (-0.5 + (x/1277.5)) * 2 * 45
 
     def find_goal(self, frame_threshold, frame, width, goal_rotation):
-
+        # find contours in the mask and initialize the current
+        # (x, y) center of the ball
         cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
             cv.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
         center1 = None
         center2 = None
 
-        # Nur weiter machen wenn min zwei Konturen gefunden wurden
+        # only proceed if at least one contour was found
         if len(cnts) > 1:
-
+            # find the largest contour in the mask, then use
+            # it to compute the minimum enclosing circle and
+            # centroid 
             # finde die zwei größten Kreise
             max_area = -1
             second_max_area = -1
@@ -311,9 +131,10 @@ class MaskWindow():
                 x1, y1, radius1, M1 = x3, y3, radius3, M3
 
 
-            # Nur weiter machen bei einer Mindestgröße
+            # only proceed if the radius meets a minimum size
             if radius1 > 10 and radius2 > 10:
-
+                # draw the circle and centroid on the frame,
+                # then update the list of tracked points
                 cv.circle(frame, (int(x1), int(y1)), int(radius1),
                     (255, 0, 0), 2)
                 cv.circle(frame, center1, 5, (0, 0, 255), -1)
@@ -323,10 +144,11 @@ class MaskWindow():
                 cv.circle(frame, center2, 5, (0, 0, 255), -1)
 
                 # Distanzberechnung mit ausgleich für die Höhe
+                
                 dist_a = (400*FOCALLENGTH)/radius1
                 dist_b = (400*FOCALLENGTH)/radius2
-                dist_a = math.sqrt(math.pow(dist_a, 2) - 49)
-                dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
+                # dist_a = math.sqrt(math.pow(dist_a, 2) - 49)
+                # dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
                 dist_c = 20
 
                 # Winkel aus Dreieck mit Markerpunkten und Kamera
@@ -369,9 +191,11 @@ class MaskWindow():
                         elif alpha < 90:
                             y_self = 400 + (math.cos(beta) * dist_b)   
 
-                env.position_x(x_self)
-                env.position_y(y_self)
-                env.rotation(vector_rotation)
+                print(dist_a, dist_b, vector_rotation)
+                 # env.position_x(x_self)
+                 # env.position_y(y_self)
+                 # env.rotation(vector_rotation)
+
 
     def build_window(self):
 
@@ -438,19 +262,23 @@ class MaskWindow():
             cv.createTrackbar("Goal Enemy", self.window_name, 0, 1, trackbar_goal_enemy)
 
 
-# init_camera_feed muss davor ausführen
-# Klasse für einfache geometrische Ballerkennung
-class VideoProcessingOpenCV():
+
+
+class TrackBall():
 
     def __init__(self):
         self.window_capture_name = 'Vectors Camera'
         self.window_detection_name_ball = 'Ball Detection'
         self.window_detection_name_goal_self = 'Goal Detection'
         self.window_master_name = "Master"
+   
+    def start(self):
 
-    def start_tracking(self, robot, env):
+        parser = argparse.ArgumentParser(description='Code for Thresholding Operations using inRange tutorial.')
+        parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
+        args = parser.parse_args()
+        cap = cv.VideoCapture(args.camera)
 
-        # Windows erstellen
         cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name_ball, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
@@ -465,27 +293,25 @@ class VideoProcessingOpenCV():
         cv.moveWindow(self.window_detection_name_goal_self, 0, 230)
         cv.moveWindow(self.window_master_name, 700, 0)
 
-        master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
+        master_trackbar = Mask_window(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
         master_trackbar.build_window()
 
-        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 140, 60, 242, 195, False)
+        mask_ball = Mask_window(self.window_detection_name_ball, 6, 104, 140, 60, 242, 195, False)
         mask_ball.build_window()
 
-        mask_goal = MaskWindow(self.window_detection_name_goal_self, 6, 104, 140, 60, 242, 195, False)
+        mask_goal = Mask_window(self.window_detection_name_goal_self, 6, 104, 140, 60, 242, 195, False)
         mask_goal.build_window()
 
+        
 
-        while robot.camera.image_streaming_enabled():
-
-            timestamp = time.time()
-            frame = cv.cvtColor(np.array(robot.camera.latest_image.raw_image), cv.COLOR_RGB2BGR)
-
+        while True:
+            
+            ret, frame = cap.read()
             if frame is None:
                 break
-            width, height = frame.size
+            #width, height = frame.size
+            width = 635
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-
-            # Maske erstellen
             frame_threshold_ball = mask_ball.preprocess(frame_HSV)
             frame_threshold_goal_self = mask_goal.preprocess(frame_HSV)
 
@@ -537,83 +363,19 @@ class VideoProcessingOpenCV():
                 cv.destroyWindow(self.window_detection_name_goal_self)
                 exist_goal = False
 
-            # q Drücken zum schließen
+
+
+            
             key = cv.waitKey(30)
             if key == ord('q') or key == 27:
                 break
 
-# Aktiviert Offline oder Online Erkennung von Gegner
-def detect_enemy(robot, environment, mode):
-    if robot.camera.image_streaming_enabled() is False:
-        robot.camera.init_camera_feed()
-
-    if mode == "online":
-        videoprocessor = VideoProcessingCloud()
-        videoprocessor.detection(robot, environment)
-
-    elif mode == "offline":
-        videoprocessor = VideoProcessingTF(MODEL_FILENAME)
-        videoprocessor.detection(robot, environment)
+    
 
 
-# Aktivieren der Ball und Markererkennung
-def detect_openCV(robot, environment):
-    robot.camera.init_camera_feed()
-    bt = VideoProcessingOpenCV()
-    bt.start_tracking(robot, environment)
-
-# Hilfsfunktion um Bild in Bytestrom umzuwandeln
-def take_picture_to_byte(image):
-
-    with io.BytesIO() as output:
-        image.save(output, 'BMP')
-        image_as_bytes = output.getvalue()
-
-    return image_as_bytes
-
-# Winkel zwischen Vector und Ball zurückgeben
-def current_rotation_to_ball():
-    return rotation_to_ball 
-
-def test_perception():
-
-    def start_robot():
-        robot = anki_vector.Robot(serial=SERIAL)
-        environment = env.Environment(robot,
-                                field_length_x=2000.0,
-                                field_length_y=1000.0,
-                                goal_width=200.0,
-                                ball_diameter=40.0,
-                                position_start_x=100.0,
-                                position_start_y=500.0,
-                                enable_environment_viewer=False)
-        robot.connect()
-        robot.camera.init_camera_feed()
-        robot.behavior.set_eye_color(0.05, 1.0)
-        robot.behavior.set_head_angle(degrees(0))
-        return (robot, environment)
-
-    print("Für einen Test der Perception ohne Vector bitte die Testversion im Ordner Test Code nutzen")
-    modus = None
-    while modus is None:
-        print("Drücke für offline Bildererkennung (1), online Bilderkennung (2), offline Ballerkennung (3), Abrruch (4)")
-        modus = input()
-        if modus == "1":
-            robot, environment = start_robot()
-            detect_object(robot, environment, "offline")  
-        elif modus == "2":
-            robot, environment = start_robot()
-            detect_object(robot, environment, "online")  
-        elif modus == "3":
-            robot, environment = start_robot()
-            detect_ball(robot, environment)
-        elif modus == "4":
-            break
-        else:
-            modus = None
-
-
-
+def run():
+    tb = TrackBall()
+    tb.start()
 
 if __name__ == "__main__":
-    test_perception()
+    run()
