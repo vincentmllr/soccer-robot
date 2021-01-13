@@ -36,7 +36,7 @@ class Environment():
                                        self._ROBOT_SIZE_Y,
                                        self._POSITION_START_X,
                                        self._POSITION_START_Y,
-                                       0.0, 0, self)
+                                       0.0, 0, self, 180.0)
         self._ball = EnvironmentObject('Ball',
                                        self._BALL_DIAMETER,
                                        self._BALL_DIAMETER,
@@ -49,7 +49,7 @@ class Environment():
                                         self._FIELD_LENGTH_X
                                         - self._POSITION_START_X,
                                         self._POSITION_START_Y,
-                                        180.0, 0, self)
+                                        180.0, 0, self, 0.0, 180.0)
         self._goal_self = EnvironmentObject('Goal_self',
                                             0,
                                             self._GOAL_WIDTH,
@@ -66,7 +66,7 @@ class Environment():
             self.environment_viewer = EnvironmentViewer(self)
             viewer_thread = threading.Thread(target=self.environment_viewer.show())
             viewer_thread.start()
-            #viewer_thread.join()
+            # viewer_thread.join()
         print('Environment initialized with objects in startposition.')
 
     def environment_objects(self):
@@ -122,21 +122,25 @@ class Environment():
 class EnvironmentObject():
 
     def __init__(self, tag, size_x, size_y, position_x, position_y,
-                 rotation, last_seen, environment):
+                 rotation, last_seen, environment, angle_to_goal_self=0.0,
+                 angle_to_goal_enemy=0.0, angle_to_ball=0.0):
         self._tag = tag
         self._size_x = size_x
         self._size_y = size_y
-        self._position_x = position_x  # - environment._POSITION_START_X
-        self._position_y = position_y  # - environment._POSITION_START_Y
+        self._position_x = position_x
+        self._position_y = position_y
         self._rotation = rotation  # in Grad
         self._last_seen = last_seen  # In Sekunden nach 01.01.1970
         self._environment = environment
+        self._angle_to_goal_self = angle_to_goal_self
+        self._angle_to_goal_enemy = angle_to_goal_enemy
+        self._angle_to_ball = angle_to_ball
 
     def pose(self):
         if self._tag == 'Self':
             position_x = self._robot.pose.to_matrix().pos_xyz[0]
             position_y = self._robot.pose.to_matrix().pos_xyz[1]
-            rotation = self._robot.pose_angle_rad / math.pi * 180.0 
+            rotation = self._robot.pose_angle_rad / math.pi * 180.0
             self._self.position_x = position_x + self._POSITION_START_X
             self._self.position_y = position_y + self._POSITION_START_Y
             self._self.rotation = rotation
@@ -210,6 +214,30 @@ class EnvironmentObject():
     @property
     def environment(self):
         return self._environment
+
+    @property
+    def angle_to_goal_self(self):
+        return self._angle_to_goal_self
+
+    @angle_to_goal_self.setter
+    def angle_to_goal_self(self, angle_to_goal_self):
+        self._angle_to_goal_self = angle_to_goal_self
+
+    @property
+    def angle_to_goal_enemy(self):
+        return self._angle_to_goal_enemy
+
+    @angle_to_goal_enemy.setter
+    def angle_to_goal_enemy(self, angle_to_goal_enemy):
+        self._angle_to_goal_enemy = angle_to_goal_enemy
+
+    @property
+    def angle_to_ball(self):
+        return self._angle_to_ball
+
+    @angle_to_ball.setter
+    def angle_to_ball(self, angle_to_ball):
+        self._angle_to_ball = angle_to_ball
 
 
 class EnvironmentViewer:
