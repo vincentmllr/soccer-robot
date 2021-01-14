@@ -26,7 +26,6 @@ LABELS_FILENAME = 'labels.txt'
 FOCALLENGTH = 14.86
 rotation_to_ball = None
 
-
 # Klasse zur Bildverarbeitung online
 class VideoProcessingCloud():
 
@@ -104,7 +103,6 @@ class VideoProcessingCloud():
                 key = cv.waitKey(10)
                 if key == ord('q') or key == 27:
                     break
-
 
 # Offline Bildverarbeitung mit TensorFlow
 class VideoProcessingTF():
@@ -265,12 +263,13 @@ class MaskWindow():
 
                 env.ball.position_x = estimated_x
                 env.ball.position_y = estimated_y
-                # env.ball._last_seen = timestamp
+                env.ball.is_seen = True
                 env.self.angle_to_ball = rotation_to_ball
 
-            else:
-                rotation_to_ball = None
-                env.self.angle_to_ball = None
+        else:
+            rotation_to_ball = None
+            env.self.angle_to_ball = None
+            env.ball.is_seen = False
 
     def find_goal(self, env, frame_threshold, frame, width, goal_rotation):
 
