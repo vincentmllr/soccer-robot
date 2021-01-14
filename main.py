@@ -80,26 +80,45 @@ def test():
                                   position_start_y=500.0,
                                   enable_environment_viewer=False)
 
-    with behavior.ReserveBehaviorControl(serial=SERIAL):
+    args = anki_vector.util.parse_command_args()
+    with anki_vector.Robot(args.serial) as robot:
 
-            detect_ball_Thread = threading.Thread(target=perception.detect_ball, args=[robot, env])
-            robot.behavior.set_head_angle(degrees(0))
-            robot.behavior.set_lift_height(0)
-            print("detect_ball()")
-            robot.camera.init_camera_feed()
-            detect_ball_Thread.start()
+        # #+++EnvironmentViewerTestANFANG+++
+        def show_viewer():
+            viewer = environment.EnvironmentViewer(env)
+            fenster = tkinter.Tk()
+            app = viewer.TestWindow(fenster)
+            fenster.mainloop()
 
-            print("Zum Starten Enter drücken")
-            input()
-            robot.behavior.drive_straight(distance_mm(40), speed_mmps(500))
-            print("40mm")
-            robot.behavior.drive_straight(distance_mm(40), speed_mmps(500))
-            print("40mm")
-            robot.behavior.drive_straight(distance_mm(40), speed_mmps(500))
-            print("40mm")
-            robot.behavior.drive_straight(distance_mm(40), speed_mmps(500))
-            print("40mm")
-            # action.shooting(env, robot)
+        viewer_thread = threading.Thread(target=show_viewer())
+        viewer_thread.start()
+        # #+++EnvironmentViewerTestENDE+++
+
+        detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
+        robot.behavior.set_head_angle(degrees(0))
+        robot.behavior.set_lift_height(0)
+        print("detect_ball()")
+        robot.camera.init_camera_feed()
+        detect_ball_Thread.start()
+
+        print("Zum Starten Enter drücken")
+        input()
+        robot.behavior.set_head_angle(degrees(0))
+        robot.behavior.set_lift_height(0)
+        running = True
+        while running:
+            print("Goooooo")
+            print("x-postion anfang: ", env.self.position_x)
+            print("y-postion anfang: ", env.self.position_y)
+            print("Rotation Vector: ", env.self.rotation)
+            action.look_for_ball(env, robot)
+            print("x-position Ende: ", env.self.position_x)
+            print("y-position Ende: ", env.self.position_y)
+            print("zum abbrechen 0 drücken")
+            i = input()
+            if i == "0":
+                running = False
+     
 
 
 if __name__ == "__main__":
