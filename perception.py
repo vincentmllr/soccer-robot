@@ -41,7 +41,14 @@ class VideoProcessingCloud():
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
-        self.running = True
+    # Hilfsfunktion um Bild in Bytestrom umzuwandeln
+    def take_picture_to_byte(image):
+
+        with io.BytesIO() as output:
+            image.save(output, 'BMP')
+            image_as_bytes = output.getvalue()
+
+        return image_as_bytes
 
     # Bild verarbeiten
     def detection(self, robot, env):
@@ -92,7 +99,7 @@ class VideoProcessingCloud():
                         # Hinzufügen zu Environment
                         env.enemy.position_x = estimated_x
                         env.enemy.position_y = estimated_y
-                        env.enemy._last_seen = t
+                        env.enemy.last_seen = t
 
                         found_vector = True
 
@@ -173,7 +180,7 @@ class VideoProcessingTF():
                     # Hinzufügen zum Environment
                     env.enemy.position_x = estimated_x
                     env.enemy.position_y = estimated_y
-                    env.enemy._last_seen = t
+                    env.enemy.last_seen = t
 
                 # Bild mit Rechteck anzeigen
                 cv.imshow(window_name, frame)
@@ -470,10 +477,10 @@ class VideoProcessingOpenCV():
         cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_master_name, cv.WINDOW_NORMAL)
 
-        exist_camera = True
-        exist_ball = True
-        exist_goal = True
-        exist_goal_enemy = True
+        exist_camera = False
+        exist_ball = False
+        exist_goal = False
+        exist_goal_enemy = False
 
         cv.moveWindow(self.window_capture_name, 0, 0)
         cv.moveWindow(self.window_detection_name_ball, 550, 0)
@@ -492,6 +499,7 @@ class VideoProcessingOpenCV():
         mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 110, 130, 50, 180, 242, 195, False)
         mask_goal_enemy.build_window()
 
+
         while robot.camera.image_streaming_enabled():
 
             timestamp = time.time()
@@ -501,7 +509,8 @@ class VideoProcessingOpenCV():
 
             if frame is None:
                 break
-            width = 620
+
+            width, height = img.size
             frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
 
             # Maske erstellen
@@ -510,13 +519,10 @@ class VideoProcessingOpenCV():
             frame_threshold_goal_enemy = mask_goal_enemy.preprocess(frame_HSV)
 
             min_radius = cv.getTrackbarPos("Minimum Radius", self.window_detection_name_ball)
+
             mask_ball.find_ball(env, frame_threshold_ball, frame, min_radius, timestamp)
             mask_goal.find_goal(env, frame_threshold_goal_self, frame, width, 180)
-            # mask_goal_enemy.find_goal(env, frame_threshold_goal_self, frame, width, 0)
-
-            cv.resizeWindow(self.window_capture_name, 550, 320)
-            cv.resizeWindow(self.window_detection_name_ball, 550, 350)
-            cv.resizeWindow(self.window_detection_name_goal_self, 550, 350)
+            mask_goal_enemy.find_goal(env, frame_threshold_goal_self, frame, width, 0)
 
             show_window_camera = cv.getTrackbarPos("Vector Camera", self.window_master_name)
             show_window_ball = cv.getTrackbarPos("Ball Detection", self.window_master_name)
@@ -528,7 +534,8 @@ class VideoProcessingOpenCV():
             elif show_window_camera == 1 and exist_camera == False:
                 cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
                 mask_ball.build_window()
-                cv.moveWindow(self.window_capture_name, 0, -100)
+                cv.moveWindow(self.window_capture_name, 0, 0)
+                cv.resizeWindow(self.window_capture_name, 550, 320)
                 exist_camera = True
                 cv.imshow(self.window_capture_name, frame)
             elif show_window_camera == 0 and exist_camera == True:
@@ -540,7 +547,8 @@ class VideoProcessingOpenCV():
             elif show_window_ball == 1 and exist_ball == False:
                 cv.namedWindow(self.window_detection_name_ball, cv.WINDOW_NORMAL)
                 mask_ball.build_window()
-                cv.moveWindow(self.window_detection_name_ball, 0, -100)
+                cv.moveWindow(self.window_detection_name_ball, 400, 0)
+                cv.resizeWindow(self.window_detection_name_ball, 550, 350)
                 exist_ball = True
                 cv.imshow(self.window_detection_name_ball, frame_threshold_ball)
             elif show_window_ball == 0 and exist_ball == True:
@@ -552,7 +560,8 @@ class VideoProcessingOpenCV():
             elif show_window_goal_self == 1 and exist_goal == False:
                 cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
                 mask_goal.build_window()
-                cv.moveWindow(self.window_detection_name_goal_self, 0, -100)
+                cv.moveWindow(self.window_detection_name_goal_self, 400, 0)
+                cv.resizeWindow(self.window_detection_name_goal_self, 550, 350)
                 exist_goal = True
                 cv.imshow(self.window_detection_name_goal_self, frame_threshold_goal_self)
             elif show_window_goal_self == 0 and exist_goal == True:
@@ -564,7 +573,8 @@ class VideoProcessingOpenCV():
             elif show_window_goal_enemy == 1 and exist_goal_enemy == False:
                 cv.namedWindow(self.window_detection_name_goal_enemy, cv.WINDOW_NORMAL)
                 mask_goal.build_window()
-                cv.moveWindow(self.window_detection_name_goal_enemy, 0, -100)
+                cv.moveWindow(self.window_detection_name_goal_enemy, 400, 0)
+                cv.resizeWindow(self.window_detection_name_goal_enemy, 550, 350)
                 exist_goal_enemy = True
                 cv.imshow(self.window_detection_name_goal_enemy, frame_threshold_goal_enemy)
             elif show_window_goal_enemy == 0 and exist_goal_enemy == True:
@@ -595,15 +605,6 @@ def detect_openCV(robot, env):
     robot.camera.init_camera_feed()
     bt = VideoProcessingOpenCV()
     bt.start_tracking(robot, env)
-
-# Hilfsfunktion um Bild in Bytestrom umzuwandeln
-def take_picture_to_byte(image):
-
-    with io.BytesIO() as output:
-        image.save(output, 'BMP')
-        image_as_bytes = output.getvalue()
-
-    return image_as_bytes
 
 # Winkel zwischen Vector und Ball zurückgeben
 def current_rotation_to_ball():
@@ -645,9 +646,6 @@ def test_perception():
             break
         else:
             modus = None
-
-
-
 
 if __name__ == "__main__":
     test_perception()
