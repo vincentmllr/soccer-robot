@@ -330,7 +330,6 @@ class MaskWindow():
                 dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
                 dist_c = 200
 
-
                 # Winkel aus Dreieck mit Markerpunkten und Kamera
                 pre_alpha = ((dist_a ** 2) - (dist_b ** 2) - (dist_c ** 2)) / (-2 * dist_b * dist_c)
                 alpha = math.acos(self.round_to_interval(pre_alpha))
@@ -338,8 +337,6 @@ class MaskWindow():
                 beta = math.acos(self.round_to_interval(pre_beta))
                 delta = 180 - beta
                 epsilon = 180 - alpha
-
-                env.self.angle_to_goal_self = rotation_to_goal
 
                 if goal_rotation == 180:
                     goal_x = x1 + ((x2 - x1)/2)
@@ -379,12 +376,9 @@ class MaskWindow():
                     env.self.angle_to_goal_self = None
                     env.self.angle_to_goal_enemy = None
 
-
                 #env._self.position_x(x_self)
                 #env._self.position_y(y_self)
                 #env._self.rotation(vector_rotation)
-
-
 
     def build_window(self):
 
@@ -483,14 +477,14 @@ class VideoProcessingOpenCV():
         cv.namedWindow(self.window_master_name, cv.WINDOW_NORMAL)
 
         exist_camera = True
-        exist_ball =  True
-        exist_goal =  True
+        exist_ball = True
+        exist_goal = True
         exist_goal_enemy =  True
 
-        cv.moveWindow(self.window_capture_name, 0, -100)
-        cv.moveWindow(self.window_detection_name_ball, 550, -1)
-        cv.moveWindow(self.window_detection_name_goal_self, 0, 230)
-        cv.moveWindow(self.window_master_name, 700, 0)
+        cv.moveWindow(self.window_capture_name, 0, 0)
+        cv.moveWindow(self.window_detection_name_ball, 550, 0)
+        cv.moveWindow(self.window_detection_name_goal_self, 550, 0)
+        cv.moveWindow(self.window_master_name, 1000, 0)
 
         master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
         master_trackbar.build_window()
