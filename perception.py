@@ -227,7 +227,7 @@ class MaskWindow():
         val = min(val, 1)
         return val
 
-    def find_ball(self, env, frame_threshold, frame, min_radius):
+    def find_ball(self, env, frame_threshold, frame, min_radius, timestamp):
         # find contours in the mask and initialize the current
         # (x, y) center of the ball
         cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
@@ -263,13 +263,12 @@ class MaskWindow():
 
                 env.ball.position_x = estimated_x
                 env.ball.position_y = estimated_y
-                env.ball.is_seen = True
+                env.ball.last_seen = timestamp
                 env.self.angle_to_ball = rotation_to_ball
 
         else:
             rotation_to_ball = None
             env.self.angle_to_ball = None
-            env.ball.is_seen = False
 
     def find_goal(self, env, frame_threshold, frame, width, goal_rotation):
 
@@ -413,14 +412,10 @@ class MaskWindow():
                 self.high_V = max(self.high_V, self.low_V+1)
                 cv.setTrackbarPos(self.high_V_name, self.window_name, self.high_V)
 
-            def on_high_V_thresh_trackbar(val):
-                self.min_radius = val
-                self.high_V = max(self.high_V, self.low_V+1)
-                cv.setTrackbarPos(self.high_V_name, self.window_name, self.high_V)
 
             def radius_trackbar(val):
                 self.min_radius = val
-                cv.setTrackbarPos(self.min_radius_name, self.window_name, self.high_V)
+                cv.setTrackbarPos(self.min_radius_name, self.window_name, self.min_radius)
 
             cv.createTrackbar(self.low_H_name, self.window_name, self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
             cv.createTrackbar(self.high_H_name, self.window_name, self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
@@ -478,7 +473,7 @@ class VideoProcessingOpenCV():
         exist_camera = True
         exist_ball = True
         exist_goal = True
-        exist_goal_enemy =  True
+        exist_goal_enemy = True
 
         cv.moveWindow(self.window_capture_name, 0, 0)
         cv.moveWindow(self.window_detection_name_ball, 550, 0)
@@ -488,7 +483,7 @@ class VideoProcessingOpenCV():
         master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
         master_trackbar.build_window()
 
-        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 140, 60, 242, 195, False)
+        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 95, 60, 242, 195, False)
         mask_ball.build_window()
 
         mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, False)
@@ -515,7 +510,7 @@ class VideoProcessingOpenCV():
             frame_threshold_goal_enemy = mask_goal_enemy.preprocess(frame_HSV)
 
             min_radius = cv.getTrackbarPos("Minimum Radius", self.window_detection_name_ball)
-            mask_ball.find_ball(env, frame_threshold_ball, frame, min_radius)
+            mask_ball.find_ball(env, frame_threshold_ball, frame, min_radius, timestamp)
             mask_goal.find_goal(env, frame_threshold_goal_self, frame, width, 180)
             # mask_goal_enemy.find_goal(env, frame_threshold_goal_self, frame, width, 0)
 
