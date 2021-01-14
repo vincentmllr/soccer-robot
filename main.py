@@ -33,7 +33,7 @@ def main():
 
         # #+++EnvironmentViewerTestANFANG+++
         def show_viewer():
-            viewer = environment.EnvironmentViewer()
+            viewer = environment.EnvironmentViewer(env)
             fenster = tkinter.Tk()
             app = viewer.TestWindow(fenster)
             fenster.mainloop()

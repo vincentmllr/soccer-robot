@@ -237,7 +237,7 @@ class EnvironmentObject():
 
     @angle_to_ball.setter
     def angle_to_ball(self, angle_to_ball):
-        self._angle_to_ball = angle_to_ball
+        self._angle_to_ball = angle_to_ball 
 
 
 class EnvironmentViewer:
