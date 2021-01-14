@@ -339,6 +339,8 @@ class MaskWindow():
                 delta = 180 - beta
                 epsilon = 180 - alpha
 
+                env.self.angle_to_goal_self = rotation_to_goal
+
                 if goal_rotation == 180:
                     goal_x = x1 + ((x2 - x1)/2)
                     rotation_to_goal = (goal_x - 320)/640 * -90
@@ -373,11 +375,16 @@ class MaskWindow():
                         elif alpha < 90:
                             y_self = 400 + (math.cos(beta) * dist_b)   
                 
+                else:
+                    env.self.angle_to_goal_self = None
+                    env.self.angle_to_goal_enemy = None
 
 
                 #env._self.position_x(x_self)
                 #env._self.position_y(y_self)
                 #env._self.rotation(vector_rotation)
+
+
 
     def build_window(self):
 
