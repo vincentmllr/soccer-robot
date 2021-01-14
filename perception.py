@@ -475,16 +475,18 @@ class VideoProcessingOpenCV():
         cv.namedWindow(self.window_capture_name, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name_ball, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_detection_name_goal_self, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.window_detection_name_goal_enemy, cv.WINDOW_NORMAL)
         cv.namedWindow(self.window_master_name, cv.WINDOW_NORMAL)
 
-        exist_camera = False
-        exist_ball = False
-        exist_goal = False
-        exist_goal_enemy = False
+        exist_camera = True
+        exist_ball = True
+        exist_goal = True
+        exist_goal_enemy = True
 
         cv.moveWindow(self.window_capture_name, 0, 0)
         cv.moveWindow(self.window_detection_name_ball, 550, 0)
         cv.moveWindow(self.window_detection_name_goal_self, 550, 0)
+        cv.moveWindow(self.window_detection_name_goal_enemy, 550, 0)
         cv.moveWindow(self.window_master_name, 1000, 0)
 
         master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
@@ -496,7 +498,7 @@ class VideoProcessingOpenCV():
         mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, False)
         mask_goal.build_window()
 
-        mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 110, 130, 50, 180, 242, 195, False)
+        mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, False)
         mask_goal_enemy.build_window()
 
 
@@ -522,7 +524,7 @@ class VideoProcessingOpenCV():
 
             mask_ball.find_ball(env, frame_threshold_ball, frame, min_radius, timestamp)
             mask_goal.find_goal(env, frame_threshold_goal_self, frame, width, 180)
-            mask_goal_enemy.find_goal(env, frame_threshold_goal_self, frame, width, 0)
+            mask_goal_enemy.find_goal(env, frame_threshold_goal_enemy, frame, width, 0)
 
             show_window_camera = cv.getTrackbarPos("Vector Camera", self.window_master_name)
             show_window_ball = cv.getTrackbarPos("Ball Detection", self.window_master_name)
@@ -572,7 +574,7 @@ class VideoProcessingOpenCV():
                 cv.imshow(self.window_detection_name_goal_enemy, frame_threshold_goal_enemy)
             elif show_window_goal_enemy == 1 and exist_goal_enemy == False:
                 cv.namedWindow(self.window_detection_name_goal_enemy, cv.WINDOW_NORMAL)
-                mask_goal.build_window()
+                mask_goal_enemy.build_window()
                 cv.moveWindow(self.window_detection_name_goal_enemy, 400, 0)
                 cv.resizeWindow(self.window_detection_name_goal_enemy, 550, 350)
                 exist_goal_enemy = True
