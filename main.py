@@ -83,16 +83,16 @@ def test():
     args = anki_vector.util.parse_command_args()
     with anki_vector.Robot(args.serial) as robot:
 
-        # #+++EnvironmentViewerTestANFANG+++
-        def show_viewer():
-            viewer = environment.EnvironmentViewer(env)
-            fenster = tkinter.Tk()
-            app = viewer.TestWindow(fenster)
-            fenster.mainloop()
+        # # #+++EnvironmentViewerTestANFANG+++
+        # def show_viewer():
+        #     viewer = environment.EnvironmentViewer(env)
+        #     fenster = tkinter.Tk()
+        #     app = viewer.TestWindow(fenster)
+        #     fenster.mainloop()
 
-        viewer_thread = threading.Thread(target=show_viewer())
-        viewer_thread.start()
-        # #+++EnvironmentViewerTestENDE+++
+        # viewer_thread = threading.Thread(target=show_viewer())
+        # viewer_thread.start()
+        # # #+++EnvironmentViewerTestENDE+++
 
         detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
         robot.behavior.set_head_angle(degrees(0))
