@@ -10,8 +10,10 @@ import tkinter
 from tkinter import *
 
 NAME = 'Vector-N8G2'
-IP = '192.168.0.189'
+NAME_VINCENT = 'Vector-R7U1'
+IP_VINCENT = '192.168.68.159'
 SERIAL = '008014c1'
+SERIAL_VINCENT = '00804ea0'
 
 
 class Environment():
@@ -20,8 +22,7 @@ class Environment():
     '''
 
     def __init__(self, robot, field_length_x, field_length_y,
-                 goal_width, ball_diameter, position_start_x, position_start_y,
-                 enable_environment_viewer):
+                 goal_width, ball_diameter, position_start_x, position_start_y):
         self._robot = robot
         self._ROBOT_SIZE_X = 100
         self._ROBOT_SIZE_Y = 60
@@ -62,12 +63,11 @@ class Environment():
                                              self._FIELD_LENGTH_X,
                                              self._POSITION_START_Y,
                                              0.0, 0, self)
-        if enable_environment_viewer:
-            self.environment_viewer = EnvironmentViewer(self)
-            viewer_thread = threading.Thread(target=self.environment_viewer.show())
-            viewer_thread.start()
-            # viewer_thread.join()
-        print('Environment initialized with objects in startposition.')
+        self._viewer = EnvironmentViewer(self)
+        self._environment_viewer = threading.Thread(target=self._viewer.show)
+        # Alternativ: Das in Main funktioniert auf jeden Fall
+        # viewer_thread = threading.Thread(target=env.environment_viewer.show)
+        # viewer_thread.start()
 
     def environment_objects(self):
         '''Returns a list of all the objects on the map in the following order:
@@ -117,6 +117,10 @@ class Environment():
     @property
     def field_length_y(self):
         return self._FIELD_LENGTH_Y
+
+    @property
+    def environment_viewer(self):
+        return self._environment_viewer
 
 
 class EnvironmentObject():
@@ -420,7 +424,6 @@ class EnvironmentViewer:
 
 
         # pygame.quit()
-        print("Thread sollte funktionieren, wenn man das liest.")
 
 
 class EnvironmentTest():
@@ -491,7 +494,7 @@ class EnvironmentTest():
     def test(self):
         anki_vector_available = False
         if anki_vector_available is True:
-            robot = anki_vector.Robot(serial=SERIAL)
+            robot = anki_vector.Robot(serial=SERIAL_VINCENT)
             environment = Environment(robot,
                                       field_length_x=2000.0,
                                       field_length_y=1000.0,
@@ -503,7 +506,7 @@ class EnvironmentTest():
             robot.connect()
             robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
 
-            with behavior.ReserveBehaviorControl(serial=SERIAL):
+            with behavior.ReserveBehaviorControl(serial=SERIAL_VINCENT):
 
                 # self.test_general(robot, environment)
                 # self.test_winkelformat(robot, environment)
