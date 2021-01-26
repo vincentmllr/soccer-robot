@@ -1,8 +1,10 @@
 import anki_vector
 import time
+from anki_vector.connection import ControlPriorityLevel
 from anki_vector.util import degrees, Pose
 from anki_vector import behavior
 import pygame
+from pygame.constants import K_0
 from pygame.locals import Rect, QUIT
 import threading
 import math
@@ -246,13 +248,6 @@ class EnvironmentObject():
 
 class EnvironmentViewer:
 
-    class TestWindow():
-
-        def __init__(self, master):
-            self.master = master
-            self.frame = tkinter.Frame(self.master)
-            self.master.wm_title("ViewerTest")
-
     def __init__(self, environment):
         self._environment = environment
 
@@ -355,18 +350,18 @@ class EnvironmentViewer:
         window = pygame.display.set_mode((window_width, window_height))
         clock = pygame.time.Clock()
 
-        # thread = threading.Thread(target=window)
-        # thread.start()
-
         self_png_rotation = 0.0
         enemy_png_rotation = 0.0
-        rotation_offset = 90.0
+        rotation_offset = -90
         self_png = pygame.image.load("vector_without_background.png").convert_alpha()
         self_png = pygame.transform.scale(self_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
-        self_png = pygame.transform.rotate(self_png, rotation_offset)
-        enemy_png = pygame.image.load("vector_without_background.png").convert_alpha()
-        enemy_png = pygame.transform.scale(enemy_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
-        enemy_png = pygame.transform.rotate(enemy_png, rotation_offset)
+        # self_png = pygame.transform.rotate(self_png, rotation_offset)
+        self_png_list = []
+        for i in range(-180, 180, 1):
+            self_png_list.append(pygame.transform.rotate(self_png, rotation_offset+i))
+        # enemy_png = pygame.image.load("vector_without_background.png").convert_alpha()
+        # enemy_png = pygame.transform.scale(enemy_png, (int(1.4*robot_size_x), int(1.4*robot_size_y)))
+        # enemy_png = pygame.transform.rotate(enemy_png, rotation_offset)
 
         quit = False
 
@@ -382,7 +377,7 @@ class EnvironmentViewer:
 
             self_position_x = self.scale(self._environment.self.position_x)
             self_position_y = self.scale(self._environment.self.position_y)
-            self_rotation = self._environment.self.rotation
+            self_rotation = round(self._environment.self.rotation)
             enemy_position_x = self.scale(self._environment.enemy.position_x)
             enemy_position_y = self.scale(self._environment.enemy.position_y)
             enemy_rotation = self._environment.enemy.rotation
@@ -396,31 +391,48 @@ class EnvironmentViewer:
                                 ball_position_x + edge),
                                ball_size_x/2)
             # Draw Self
-            if self_rotation != self_png_rotation:
-                self_rotation_difference = self_rotation - self_png_rotation
-                self_png = pygame.transform.rotate(self_png,
-                                                   self_rotation_difference)
-                self_png_rotation = self_rotation
+
+            # if self_rotation != self_png_rotation:
+            #     self_rotation_difference = self_rotation - self_png_rotation
+            #     self_png = pygame.transform.rotate(self_png,
+            #                                        self_rotation_difference)
+            #     self_png_rotation = self_rotation
+            # window.blit(self_png, (self_position_y - robot_size_y*0.7 + edge,
+            #                        self_position_x - robot_size_x + edge))
+
+
+            # if self_rotation >= -45 and self_rotation < 45:
+            #     self_png = self_png_list[0]
+            # elif self_rotation >= 45 and self_rotation < 135:
+            #     self_png = self_png_list[1]
+            # elif self_rotation >= -135 and self_rotation < -45:
+            #     self_png = self_png_list[3]
+            # else:
+            #     self_png = self_png_list[2]
+
+            self_png = self_png_list[self_rotation]
             window.blit(self_png, (self_position_y - robot_size_y*0.7 + edge,
                                    self_position_x - robot_size_x + edge))
+
+            print(f'Rotation_soll: {self._environment.self.rotation}'
+                  f', Rotation_PNG: {self_png_rotation}')
+
             # Draw Enemy
-            if enemy_rotation != enemy_png_rotation:
-                enemy_rotation_difference = enemy_rotation - enemy_png_rotation
-                enemy_png = pygame.transform.rotate(enemy_png,
-                                                    enemy_rotation_difference)
-                enemy_png_rotation = enemy_rotation
-            window.blit(enemy_png, (enemy_position_y - robot_size_y*0.7 + edge,
-                                    enemy_position_x - robot_size_x/2 + edge))
+            # if enemy_rotation != enemy_png_rotation:
+            #     enemy_rotation_difference = enemy_rotation - enemy_png_rotation
+            #     enemy_png = pygame.transform.rotate(enemy_png,
+            #                                         enemy_rotation_difference)
+            #     enemy_png_rotation = enemy_rotation
+            # window.blit(enemy_png, (enemy_position_y - robot_size_y*0.7 + edge,
+            #                         enemy_position_x - robot_size_x/2 + edge))
 
             # print(f'Viewer: Self:{round(self_position_x*3)},{round(self_position_y*3)}'
-            #       f'Painted Enemy at {round(enemy_position_x*3)},{enemy_position_y*3}'
             #       f'Painted Ball at {round(ball_position_x*3)},{ball_position_y*3}')
             
             #pygame.display.flip()
 
             pygame.display.update()
             clock.tick(frames_per_second)
-            time.sleep(0.001)
 
 
         # pygame.quit()
@@ -431,16 +443,7 @@ class EnvironmentTest():
     def test_viewer(self, environment):
         print('+++ViewerTest+++')
         environment_viewer = EnvironmentViewer(environment)
-        # environment_viewer_thread = threading.Thread(environment_viewer.show())
-        # environment_viewer_thread.start()
-        #environment_viewer_thread.join()
-        fenster = Tk()
-        app = environment_viewer.TestWindow(fenster)
-        fenster.wm_title("Testfenster")
-        #Show window
-        fenster.mainloop()
-
-        #print("Test geht weiter!")
+        environment_viewer.show()
 
     def test_proximity(self, robot, environment):
         print('+++Proximity-Test:+++')
@@ -492,38 +495,36 @@ class EnvironmentTest():
         print(f'Angle(rotation): {anki_vector.util.Angle(degrees=environment.self.rotation)}')
 
     def test(self):
-        anki_vector_available = False
+        anki_vector_available = True
         if anki_vector_available is True:
-            robot = anki_vector.Robot(serial=SERIAL_VINCENT)
+            robot = anki_vector.Robot(serial=SERIAL_VINCENT,
+                                      behavior_control_level=ControlPriorityLevel.OVERRIDE_BEHAVIORS_PRIORITY)
             environment = Environment(robot,
-                                      field_length_x=2000.0,
+                                      field_length_x=1600.0,
                                       field_length_y=1000.0,
                                       goal_width=200.0,
                                       ball_diameter=40.0,
-                                      position_start_x=100.0,
-                                      position_start_y=500.0,
-                                      enable_environment_viewer=False)
+                                      position_start_x=150.0,
+                                      position_start_y=500.0)
             robot.connect()
             robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
 
-            with behavior.ReserveBehaviorControl(serial=SERIAL_VINCENT):
-
-                # self.test_general(robot, environment)
-                # self.test_winkelformat(robot, environment)
-                self.test_proximity(robot, environment)
+            # self.test_general(robot, environment)
+            # self.test_winkelformat(robot, environment)
+            # self.test_proximity(robot, environment)
+            self.test_viewer(environment)
 
             robot.disconnect()
 
         else:
             robot = None
             environment = Environment(robot,
-                                      field_length_x=2000.0,
+                                      field_length_x=1600.0,
                                       field_length_y=1000.0,
                                       goal_width=200.0,
                                       ball_diameter=40.0,
-                                      position_start_x=100.0,
-                                      position_start_y=500.0,
-                                      enable_environment_viewer=False)
+                                      position_start_x=150.0,
+                                      position_start_y=500.0)
             self.test_viewer(environment)
 
 
