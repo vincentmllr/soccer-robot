@@ -1,13 +1,19 @@
+import time
+
 import anki_vector
 from anki_vector import behavior, connection
 from anki_vector.util import *
+from anki_vector.connection import ControlPriorityLevel
+
 import threading
-import support_functions as sf
+import tkinter
+
 import perception
 import action
 import environment
-import time
-import tkinter
+
+
+
 
 NAME = "Vector-N8G2"
 NAME_VINCENT = 'Vector-R7U1'
@@ -69,12 +75,12 @@ def main():
 
 def test():
 
-    robot = anki_vector.Robot(serial=SERIAL_VINCENT)
+    robot = anki_vector.Robot(serial=SERIAL, behavior_control_level = ControlPriorityLevel.OVERRIDE_BEHAVIORS_PRIORITY)
     robot.connect()
     robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
 
     env = environment.Environment(robot,
-                                  field_length_x=2000.0,
+                                  field_length_x=1500.0,
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
