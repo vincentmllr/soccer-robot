@@ -42,7 +42,7 @@ class VideoProcessingCloud():
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
     # Hilfsfunktion um Bild in Bytestrom umzuwandeln
-    def take_picture_to_byte(image):
+    def take_picture_to_byte(self, image):
 
         with io.BytesIO() as output:
             image.save(output, 'BMP')
@@ -62,7 +62,7 @@ class VideoProcessingCloud():
             t = time.time()
             image = robot.camera.latest_image.raw_image
             width, height = image.size
-            byte_image = take_picture_to_byte(image)
+            byte_image = self.take_picture_to_byte(image)
             frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
 
             # Bild wird an Server gesendet
@@ -83,8 +83,8 @@ class VideoProcessingCloud():
 
                         # Eckpunkte des Rechteck bestimmen
                         # Rechteck zeichnen
-                        ol = (prediction.bounding_box.left * width,prediction.bounding_box.top * height)
-                        ur = ((prediction.bounding_box.left + prediction.bounding_box.width) * width, (width,prediction.bounding_box.top - prediction.bounding_box.height) * height)
+                        ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
+                        ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int((prediction.bounding_box.top - prediction.bounding_box.height) * height))
                         color = (0, 0, 255)
                         cv.rectangle(frame, ol, ur, color)
 
@@ -188,7 +188,8 @@ class VideoProcessingTF():
                 # q Drücken zum schließen    
                 key = cv.waitKey(10)
                 if key == ord('q') or key == 27:
-                    break    
+                    break  
+
             
 
 class MaskWindow():
@@ -262,16 +263,18 @@ class MaskWindow():
                 
                 estimated_distance = (400*FOCALLENGTH)/radius
                 estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
+                
 
                 rotation_to_ball = estimated_rotation_to_ball
-                rotation_sum = env.self.rotation + estimated_rotation_to_ball
-                estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+
+                rotation_sum = (env.self.rotation + estimated_rotation_to_ball) % 360
+                estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
                 env.ball.position_x = estimated_x
                 env.ball.position_y = estimated_y
                 env.ball.last_seen = timestamp
-                env.self.angle_to_ball = rotation_to_ball
+                env.self.angle_to_ball = rotation_to_ball 
 
         else:
             rotation_to_ball = None
@@ -502,7 +505,7 @@ class VideoProcessingOpenCV():
         mask_goal_enemy.build_window()
 
 
-        while robot.camera.image_streaming_enabled():
+        while robot.camera.image_streaming_enabled:
 
             timestamp = time.time()
             img = robot.camera.latest_image.raw_image
@@ -587,8 +590,10 @@ class VideoProcessingOpenCV():
             key = cv.waitKey(30)
             if key == ord('q') or key == 27:
                 break
+        
 
 # Aktiviert Offline oder Online Erkennung von Gegner
+# Dynamikumfang von Vectors Kamera ist zu gering um Gegner zuverlässig zu erkennen
 def detect_enemy(robot, env, mode):
     if robot.camera.image_streaming_enabled() is False:
         robot.camera.init_camera_feed()
@@ -617,13 +622,12 @@ def test_perception():
     def start_robot():
         robot = anki_vector.Robot(serial=SERIAL)
         env = environment.Environment(robot,
-                                field_length_x=2000.0,
+                                field_length_x=1500.0,
                                 field_length_y=1000.0,
                                 goal_width=200.0,
                                 ball_diameter=40.0,
                                 position_start_x=100.0,
-                                position_start_y=500.0,
-                                enable_environment_viewer=False)
+                                position_start_y=500.0,)
         robot.connect()
         robot.camera.init_camera_feed()
         robot.behavior.set_eye_color(0.05, 1.0)
@@ -637,10 +641,10 @@ def test_perception():
         modus = input()
         if modus == "1":
             robot, env = start_robot()
-            detect_object(robot, env, "offline")  
+            detect_enemy(robot, env, "offline")  
         elif modus == "2":
             robot, env = start_robot()
-            detect_object(robot, env, "online")  
+            detect_enemy(robot, env, "online")  
         elif modus == "3":
             robot, env = start_robot()
             detect_openCV(robot, env)
