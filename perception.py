@@ -268,8 +268,8 @@ class MaskWindow():
                 rotation_to_ball = estimated_rotation_to_ball
 
                 rotation_sum = (env.self.rotation + estimated_rotation_to_ball) % 360
-                estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
                 env.ball.position_x = estimated_x
                 env.ball.position_y = estimated_y
