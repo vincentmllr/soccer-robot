@@ -505,7 +505,7 @@ class VideoProcessingOpenCV():
         mask_goal_enemy.build_window()
 
 
-        while robot.camera.image_streaming_enabled and ():
+        while robot.camera.image_streaming_enabled:
 
             timestamp = time.time()
             img = robot.camera.latest_image.raw_image
