@@ -7,7 +7,6 @@ import perception
 import action
 import environment
 import time
-import tkinter
 
 NAME = "Vector-N8G2"
 NAME_VINCENT = 'Vector-R7U1'
@@ -24,7 +23,7 @@ def main():
     robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
 
     env = environment.Environment(robot,
-                                  field_length_x=2000.0,
+                                  field_length_x=1600.0,
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
@@ -33,24 +32,14 @@ def main():
 
     with behavior.ReserveBehaviorControl(serial=SERIAL_VINCENT):
 
-        # #+++EnvironmentViewerTestANFANG+++
-        def show_viewer():
-            viewer = environment.EnvironmentViewer(env)
-            fenster = tkinter.Tk()
-            app = viewer.TestWindow(fenster)
-            fenster.mainloop()
-
-        viewer_thread = threading.Thread(target=show_viewer())
-        viewer_thread.start()
-        # #+++EnvironmentViewerTestENDE+++
-
         detect_ball_Thread = threading.Thread(target=perception.detect_ball, args=[robot, env])
         robot.behavior.set_head_angle(degrees(0))
         robot.behavior.set_lift_height(0)
         print("detect_ball()")
         robot.camera.init_camera_feed()
         detect_ball_Thread.start()
-        
+        env.environment_viewer.start()
+
         print("Zum Starten Enter drücken")
         input()
 
@@ -74,7 +63,7 @@ def test():
     robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
 
     env = environment.Environment(robot,
-                                  field_length_x=2000.0,
+                                  field_length_x=1600.0,
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
@@ -88,6 +77,7 @@ def test():
     robot.camera.init_camera_feed()
     detect_ball_Thread.start()
     env.environment_viewer.start()
+
 
     print("Zum Starten Enter drücken")
     input()
@@ -106,6 +96,8 @@ def test():
         i = input()
         if i == "0":
             running = False
+
+    robot.disconnect()
      
 
 if __name__ == "__main__":
