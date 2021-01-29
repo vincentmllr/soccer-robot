@@ -420,12 +420,12 @@ class EnvironmentViewer:
         self_png = pygame.image.load("vector.png").convert_alpha()
         self_png = pygame.transform.scale(self_png, (robot_png_width, robot_png_length))
         self_png_list = []
-        for i in range(0, 360, 1):
+        for i in range(0, 361, 1):
             self_png_list.append(pygame.transform.rotate(self_png, rotation_offset+i))
         enemy_png = pygame.image.load("vector.png").convert_alpha()
         enemy_png = pygame.transform.scale(enemy_png, (robot_png_width, robot_png_length))
         enemy_png_list = []
-        for i in range(0, 360, 1):
+        for i in range(0, 361, 1):
             enemy_png_list.append(pygame.transform.rotate(enemy_png, rotation_offset+i))
 
         # Rotation Test
