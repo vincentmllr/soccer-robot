@@ -24,14 +24,15 @@ def main():
 
     robot = anki_vector.Robot(serial=SERIAL)
     robot.connect()
-    robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
+    #robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
+    robot.behavior.set_eye_color(0.21, 1.0)  # Augenfarbe lime
 
     env = environment.Environment(robot,
                                   field_length_x=1500.0,
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
-                                  position_start_x=500.0,
+                                  position_start_x=300.0,
                                   position_start_y=500.0)
 
     detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
@@ -44,9 +45,8 @@ def main():
     input()
     robot.behavior.set_head_angle(degrees(0))
     env.environment_viewer.start()
-    print("x-postion anfang: ", env.self.position_x)
-    print("y-postion anfang: ", env.self.position_y)
-    print("Rotation Vector: ", env.self.rotation)
+    print("x-postion anfang: ", env.self.position_x, "y-postion anfang: ", env.self.position_y, "Rotation Vector: ", env.self.rotation)
+    
     print()
     print("Zum Starten des Spiels Enter drücken")
     input()
@@ -70,7 +70,7 @@ def test():
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
-                                  position_start_x=500.0,
+                                  position_start_x=300.0,
                                   position_start_y=500.0)
 
     detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
