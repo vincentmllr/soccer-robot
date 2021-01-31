@@ -193,7 +193,7 @@ class VideoProcessingTF():
             
 
 class MaskWindow():
-    def __init__(self, window_name, low_H, low_S, low_V, high_H, high_S, high_V, is_master):
+    def __init__(self, window_name, low_H, low_S, low_V, high_H, high_S, high_V, activated, is_master):
         self.window_name = window_name
         self.low_H = low_H
         self.low_S = low_S
@@ -211,7 +211,10 @@ class MaskWindow():
         self.high_V_name = 'High V'
         self.min_radius_name = 'Min Radius'
         self.min_radius = 10
+        self.activated_name = 'On/Off'
+        self.activated = activated
         self.is_master = is_master
+        
         
         
     def get_values(self):
@@ -236,161 +239,166 @@ class MaskWindow():
         return val
 
     def find_ball(self, env, frame_threshold, frame, min_radius, timestamp):
-        # find contours in the mask and initialize the current
-        # (x, y) center of the ball
-        cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
-            cv.CHAIN_APPROX_SIMPLE)
-        cnts = imutils.grab_contours(cnts)
-        center = None
+        if self.activated == 1:
+            # find contours in the mask and initialize the current
+            # (x, y) center of the ball
+            cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
+                cv.CHAIN_APPROX_SIMPLE)
+            cnts = imutils.grab_contours(cnts)
+            center = None
 
-        # only proceed if at least one contour was found
-        if len(cnts) > 0:
+            # only proceed if at least one contour was found
+            if len(cnts) > 0:
 
-            # Größte Kontur finden
-            c = max(cnts, key=cv.contourArea)
-            ((x, y), radius) = cv.minEnclosingCircle(c)
-            M = cv.moments(c)
-            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                # Größte Kontur finden
+                c = max(cnts, key=cv.contourArea)
+                ((x, y), radius) = cv.minEnclosingCircle(c)
+                M = cv.moments(c)
+                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
-            if radius > min_radius:
-                # Kreis malen
-                cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
-                cv.circle(frame, center, 5, (0, 0, 255), -1)
+                if radius > min_radius:
+                    # Kreis malen
+                    cv.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
+                    cv.circle(frame, center, 5, (0, 0, 255), -1)
 
-                # Ball zu environment hinzufügen
-                # Distance = real radius * focallength / radius in the frame
-                global rotation_to_ball
-                
-                estimated_distance = (400*FOCALLENGTH)/radius
-                estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
-                
+                    # Ball zu environment hinzufügen
+                    # Distance = real radius * focallength / radius in the frame
+                    global rotation_to_ball
+                    
+                    estimated_distance = (400*FOCALLENGTH)/radius
+                    estimated_rotation_to_ball = (-0.5 + (x/620)) * -90
+                    
 
-                rotation_to_ball = estimated_rotation_to_ball
+                    rotation_to_ball = estimated_rotation_to_ball
 
-                rotation_sum = (env.self.rotation + estimated_rotation_to_ball) % 360
-                estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
-                estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
+                    rotation_sum = (env.self.rotation + estimated_rotation_to_ball) % 360
+                    estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                    estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
-                env.ball.position_x = estimated_x
-                env.ball.position_y = estimated_y
-                env.ball.last_seen = timestamp
-                env.self.angle_to_ball = rotation_to_ball 
+                    env.ball.position_x = estimated_x
+                    env.ball.position_y = estimated_y
+                    env.ball.last_seen = timestamp
+                    env.self.angle_to_ball = rotation_to_ball 
 
-        else:
-            rotation_to_ball = None
-            env.self.angle_to_ball = None
+            else:
+                rotation_to_ball = None
+                env.self.angle_to_ball = None
 
     def find_goal(self, env, frame_threshold, frame, width, goal_rotation):
+        if self.activated == 1:
+            cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
+                cv.CHAIN_APPROX_SIMPLE)
+            cnts = imutils.grab_contours(cnts)
+            center1 = None
+            center2 = None
 
-        cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
-            cv.CHAIN_APPROX_SIMPLE)
-        cnts = imutils.grab_contours(cnts)
-        center1 = None
-        center2 = None
+            # Nur weiter machen wenn min zwei Konturen gefunden wurden
+            if len(cnts) > 1:
 
-        # Nur weiter machen wenn min zwei Konturen gefunden wurden
-        if len(cnts) > 1:
+                # finde die zwei größten Kreise
+                max_area = -1
+                second_max_area = -1
+                c1 = None
+                c2 = None
+                for i in range(len(cnts)):
+                    area = cv.contourArea(cnts[i])
+                    if area > max_area and second_max_area <= max_area:
+                        c2 = c1
+                        c1 = cnts[i]
+                        second_max_area = max_area
+                        max_area = area
+                    elif area > second_max_area:
+                        c2 = cnts[i]
+                        second_max_area = area
 
-            # finde die zwei größten Kreise
-            max_area = -1
-            second_max_area = -1
-            c1 = None
-            c2 = None
-            for i in range(len(cnts)):
-                area = cv.contourArea(cnts[i])
-                if area > max_area and second_max_area <= max_area:
-                    c2 = c1
-                    c1 = cnts[i]
-                    second_max_area = max_area
-                    max_area = area
-                elif area > second_max_area:
-                    c2 = cnts[i]
-                    second_max_area = area
+                ((x1, y1), radius1) = cv.minEnclosingCircle(c1)
+                M1 = cv.moments(c1)
+                center1 = (int(M1["m10"] / M1["m00"]), int(M1["m01"] / M1["m00"]))
+                ((x2, y2), radius2) = cv.minEnclosingCircle(c2)
+                M2 = cv.moments(c2)
+                center2 = (int(M2["m10"] / M2["m00"]), int(M2["m01"] / M2["m00"]))
 
-            ((x1, y1), radius1) = cv.minEnclosingCircle(c1)
-            M1 = cv.moments(c1)
-            center1 = (int(M1["m10"] / M1["m00"]), int(M1["m01"] / M1["m00"]))
-            ((x2, y2), radius2) = cv.minEnclosingCircle(c2)
-            M2 = cv.moments(c2)
-            center2 = (int(M2["m10"] / M2["m00"]), int(M2["m01"] / M2["m00"]))
+                # Der linke Kreis ist immer Nummer 1
+                if x1 > x2:
+                    x3, y3, radius3, M3 = x2, y2, radius2, M2
+                    x2, y2, radius2, M2 = x1, y1, radius1, M1
+                    x1, y1, radius1, M1 = x3, y3, radius3, M3
 
-            # Der linke Kreis ist immer Nummer 1
-            if x1 > x2:
-                x3, y3, radius3, M3 = x2, y2, radius2, M2
-                x2, y2, radius2, M2 = x1, y1, radius1, M1
-                x1, y1, radius1, M1 = x3, y3, radius3, M3
+                # Nur weiter machen bei einer Mindestgröße
+                if radius1 > 10 and radius2 > 10:
 
-            # Nur weiter machen bei einer Mindestgröße
-            if radius1 > 10 and radius2 > 10:
+                    cv.circle(frame, (int(x1), int(y1)), int(radius1),
+                        (255, 0, 0), 2)
+                    cv.circle(frame, center1, 5, (0, 0, 255), -1)
+                    
+                    cv.circle(frame, (int(x2), int(y2)), int(radius2),
+                        (255, 255, 0), 2)
+                    cv.circle(frame, center2, 5, (0, 0, 255), -1)
 
-                cv.circle(frame, (int(x1), int(y1)), int(radius1),
-                    (255, 0, 0), 2)
-                cv.circle(frame, center1, 5, (0, 0, 255), -1)
-                
-                cv.circle(frame, (int(x2), int(y2)), int(radius2),
-                    (255, 255, 0), 2)
-                cv.circle(frame, center2, 5, (0, 0, 255), -1)
+                    # Distanzberechnung mit ausgleich für die Höhe
+                    dist_a = (400*FOCALLENGTH)/radius1
+                    dist_b = (400*FOCALLENGTH)/radius2
+                    dist_a = math.sqrt(math.pow(dist_a, 2) - 49)
+                    dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
+                    dist_c = 200
 
-                # Distanzberechnung mit ausgleich für die Höhe
-                dist_a = (400*FOCALLENGTH)/radius1
-                dist_b = (400*FOCALLENGTH)/radius2
-                dist_a = math.sqrt(math.pow(dist_a, 2) - 49)
-                dist_b = math.sqrt(math.pow(dist_b, 2) - 49)
-                dist_c = 200
+                    # Winkel aus Dreieck mit Markerpunkten und Kamera
+                    pre_alpha = ((dist_a ** 2) - (dist_b ** 2) - (dist_c ** 2)) / (-2 * dist_b * dist_c)
+                    alpha = math.acos(self.round_to_interval(pre_alpha))
+                    pre_beta = ((dist_b ** 2) - (dist_a ** 2) - (dist_c ** 2)) / (-2 * dist_a * dist_c)
+                    beta = math.acos(self.round_to_interval(pre_beta))
+                    delta = 180 - beta
+                    epsilon = 180 - alpha
 
-                # Winkel aus Dreieck mit Markerpunkten und Kamera
-                pre_alpha = ((dist_a ** 2) - (dist_b ** 2) - (dist_c ** 2)) / (-2 * dist_b * dist_c)
-                alpha = math.acos(self.round_to_interval(pre_alpha))
-                pre_beta = ((dist_b ** 2) - (dist_a ** 2) - (dist_c ** 2)) / (-2 * dist_a * dist_c)
-                beta = math.acos(self.round_to_interval(pre_beta))
-                delta = 180 - beta
-                epsilon = 180 - alpha
+                    if goal_rotation == 180:
+                        goal_x = x1 + ((x2 - x1)/2)
+                        rotation_to_goal = (goal_x - 320)/640 * -90
+                        env.self.angle_to_goal_self = rotation_to_goal
+                        if dist_a < dist_b:
+                            x_self = (math.sin(delta) * dist_a) 
+                            if beta > 90:
+                                y_self = 400 - (math.cos(delta) * dist_a)
+                            elif beta < 90:
+                                y_self = 400 + (math.cos(beta) * dist_a)
+                        elif dist_b < dist_a:
+                            x_self = (math.sin(epsilon) * dist_b)
+                            if alpha > 90:
+                                y_self = 600 + (math.cos(delta) * dist_b)
+                            elif alpha < 90:
+                                y_self = 600 - (math.cos(beta) * dist_b)
 
-                if goal_rotation == 180:
-                    goal_x = x1 + ((x2 - x1)/2)
-                    rotation_to_goal = (goal_x - 320)/640 * -90
-                    env.self.angle_to_goal_self = rotation_to_goal
-                    if dist_a < dist_b:
-                        x_self = (math.sin(delta) * dist_a) 
-                        if beta > 90:
-                            y_self = 400 - (math.cos(delta) * dist_a)
-                        elif beta < 90:
-                            y_self = 400 + (math.cos(beta) * dist_a)
-                    elif dist_b < dist_a:
-                        x_self = (math.sin(epsilon) * dist_b)
-                        if alpha > 90:
-                            y_self = 600 + (math.cos(delta) * dist_b)
-                        elif alpha < 90:
-                            y_self = 600 - (math.cos(beta) * dist_b)
+                    elif goal_rotation == 0:
+                        goal_x = x1 + ((x2 - x1)/2)
+                        rotation_to_goal = (goal_x - 320)/640 * -90
+                        env.self.angle_to_goal_enemy = rotation_to_goal
+                        if dist_a < dist_b:
+                            x_self = 1600 - (math.sin(delta) * dist_a)
+                            if beta > 90:
+                                y_self = 600 + (math.cos(delta) * dist_a)
+                            elif beta < 90:
+                                y_self = 600 - (math.cos(beta) * dist_a)
+                        elif dist_b < dist_a:
+                            x_self = 1600 - (math.sin(epsilon) * dist_b)
+                            if alpha > 90:
+                                y_self = 400 - (math.cos(delta) * dist_b)
+                            elif alpha < 90:
+                                y_self = 400 + (math.cos(beta) * dist_b)   
+                    
+                    else:
+                        env.self.angle_to_goal_self = None
+                        env.self.angle_to_goal_enemy = None
 
-                elif goal_rotation == 0:
-                    goal_x = x1 + ((x2 - x1)/2)
-                    rotation_to_goal = (goal_x - 320)/640 * -90
-                    env.self.angle_to_goal_enemy = rotation_to_goal
-                    if dist_a < dist_b:
-                        x_self = 1600 - (math.sin(delta) * dist_a)
-                        if beta > 90:
-                            y_self = 600 + (math.cos(delta) * dist_a)
-                        elif beta < 90:
-                            y_self = 600 - (math.cos(beta) * dist_a)
-                    elif dist_b < dist_a:
-                        x_self = 1600 - (math.sin(epsilon) * dist_b)
-                        if alpha > 90:
-                            y_self = 400 - (math.cos(delta) * dist_b)
-                        elif alpha < 90:
-                            y_self = 400 + (math.cos(beta) * dist_b)   
-                
-                else:
-                    env.self.angle_to_goal_self = None
-                    env.self.angle_to_goal_enemy = None
-
-                #env._self.position_x(x_self)
-                #env._self.position_y(y_self)
-                #env._self.rotation(vector_rotation)
+                    #env._self.position_x(x_self)
+                    #env._self.position_y(y_self)
+                    #env._self.rotation(vector_rotation)
 
     def build_window(self):
 
         if self.is_master == False:
+
+            def activation_trackbar(val):
+                self.activated = val
+                cv.setTrackbarPos(self.activated_name, self.window_name, self.activated)
 
             def on_low_H_thresh_trackbar(val):
                 self.low_H = val
@@ -422,11 +430,11 @@ class MaskWindow():
                 self.high_V = max(self.high_V, self.low_V+1)
                 cv.setTrackbarPos(self.high_V_name, self.window_name, self.high_V)
 
-
             def radius_trackbar(val):
                 self.min_radius = val
                 cv.setTrackbarPos(self.min_radius_name, self.window_name, self.min_radius)
 
+            cv.createTrackbar(self.activated_name, self.window_name, self.activated, 1, activation_trackbar)
             cv.createTrackbar(self.low_H_name, self.window_name, self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
             cv.createTrackbar(self.high_H_name, self.window_name, self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
             cv.createTrackbar(self.low_S_name, self.window_name, self.low_S, self.max_value, on_low_S_thresh_trackbar)
@@ -435,7 +443,7 @@ class MaskWindow():
             cv.createTrackbar(self.high_V_name, self.window_name, self.high_V, self.max_value, on_high_V_thresh_trackbar)
 
             if self.window_name == "Ball Detection":
-                cv.createTrackbar(self.min_radius_name, self.window_name, 0, 40, radius_trackbar)
+                cv.createTrackbar(self.min_radius_name, self.window_name, self.min_radius, 40, radius_trackbar)
 
         elif self.is_master == True:
 
@@ -492,16 +500,16 @@ class VideoProcessingOpenCV():
         cv.moveWindow(self.window_detection_name_goal_enemy, 550, 0)
         cv.moveWindow(self.window_master_name, 1000, 0)
 
-        master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, True)
+        master_trackbar = MaskWindow(self.window_master_name, 0, 0, 0, 0, 0, 0, 0, True)
         master_trackbar.build_window()
 
-        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 95, 60, 242, 195, False)
+        mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 95, 60, 242, 195, 1, False)
         mask_ball.build_window()
 
-        mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, False)
+        mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, 0, False)
         mask_goal.build_window()
 
-        mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, False)
+        mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, 0, False)
         mask_goal_enemy.build_window()
 
 
