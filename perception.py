@@ -10,7 +10,7 @@ from azure.cognitiveservices.vision.customvision.training import CustomVisionTra
 from azure.cognitiveservices.vision.customvision.training.models import ImageFileCreateEntry, Region
 from azure.cognitiveservices.vision.customvision.prediction import CustomVisionPredictionClient
 from msrest.authentication import ApiKeyCredentials
-from PIL import Image
+from PIL import Image, ImageEnhance
 import PIL.Image
 import argparse
 import tensorflow as tf
@@ -18,13 +18,59 @@ import numpy as np
 import cv2 as cv
 import imutils
 
+
 import environment
 
 SERIAL = "008014c1"
-MODEL_FILENAME = 'model_s1.pb'
-LABELS_FILENAME = 'labels.txt'
+MODEL_FILENAME = 'other/model_s1.pb'
+LABELS_FILENAME = 'other/labels.txt'
+OFF_PIC = "other/off.JPG"
 FOCALLENGTH = 14.86
 rotation_to_ball = None
+
+class GUIHelper():
+    def __init__(self):
+        self.capture_window_name = "Enemy Detection"
+        self.trackbar_window_name = "Helligkeit"
+        self.activated_name = "On/Off"
+        self.brightness_name = "Helligkeit"
+        self.brightness = 50
+        self.activated = 1
+        
+
+    def build(self):
+        def activation_trackbar(val):
+            self.activated = val
+            cv.setTrackbarPos(self.activated_name, self.trackbar_window_name, self.activated)
+        def brightness_trackbar(val):
+            self.brightness = val
+            cv.setTrackbarPos(self.brightness_name, self.trackbar_window_name, self.brightness)
+
+        cv.namedWindow(self.capture_window_name, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.trackbar_window_name, cv.WINDOW_NORMAL)
+
+        cv.resizeWindow(self.capture_window_name, 500, 490)
+        cv.resizeWindow(self.trackbar_window_name, 500, 40)
+
+        cv.createTrackbar(self.activated_name, self.trackbar_window_name, self.activated, 1, activation_trackbar)
+        cv.createTrackbar(self.brightness_name, self.trackbar_window_name, self.brightness, 200, brightness_trackbar)
+        
+    def adjust_brightness_PIL(self, image):
+        brght = (self.brightness / 100) * 2
+        enhancer = ImageEnhance.Brightness(image)
+        image_adjusted = enhancer.enhance(brght)
+        return image_adjusted
+
+        # Hilfsfunktion um Bild in Bytestrom umzuwandeln
+    def take_picture_to_byte(self, image):
+
+        with io.BytesIO() as output:
+            image.save(output, 'BMP')
+            image_as_bytes = output.getvalue()
+
+        return image_as_bytes
+
+
 
 # Klasse zur Bildverarbeitung online
 class VideoProcessingCloud():
@@ -41,75 +87,72 @@ class VideoProcessingCloud():
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
 
-    # Hilfsfunktion um Bild in Bytestrom umzuwandeln
-    def take_picture_to_byte(self, image):
-
-        with io.BytesIO() as output:
-            image.save(output, 'BMP')
-            image_as_bytes = output.getvalue()
-
-        return image_as_bytes
-
     # Bild verarbeiten
     def detection(self, robot, env):
         # Fenster wird erstellt
-        window_name = "Enemy Detection"
-        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_name, 500, 490)
+        windows = GUIHelper()
+        windows.build()
 
         while robot.camera.image_streaming_enabled():
-            # Bild wird aufgenommen und vorbereitet
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            width, height = image.size
-            byte_image = self.take_picture_to_byte(image)
-            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+            if windows.activated is 1:
+                # Bild wird aufgenommen und vorbereitet
+                t = time.time()
+                image = robot.camera.latest_image.raw_image
+                width, height = image.size
+                image = windows.adjust_brightness_PIL(image)
 
-            # Bild wird an Server gesendet
-            prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
-            elapsed = time.time()-t
+                byte_image = windows.take_picture_to_byte(image)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
 
-            found_vector = False
+                # Bild wird an Server gesendet
+                prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
+                elapsed = time.time()-t
 
-            # Anzeigen der Ergebnisse
-            for prediction in prediction_results.predictions:
-                if prediction.probability > 0.2:
-                    print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
-                        prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
+                found_vector = False
 
-                # Filtern der Ergebnisse
-                if prediction.tag_name == 'Vector' and found_vector == False:
-                    if prediction.probability > 0.4:
+                # Anzeigen der Ergebnisse
+                for prediction in prediction_results.predictions:
+                    if prediction.probability > 0.2:
+                        print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
+                            prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
 
-                        # Eckpunkte des Rechteck bestimmen
-                        # Rechteck zeichnen
-                        ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
-                        ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int((prediction.bounding_box.top - prediction.bounding_box.height) * height))
-                        color = (0, 0, 255)
-                        cv.rectangle(frame, ol, ur, color)
+                    # Filtern der Ergebnisse
+                    if prediction.tag_name == 'Vector' and found_vector == False:
+                        if prediction.probability > 0.4:
 
-                        # Berechnen der Position des Gegners
-                        estimated_distance = (650*FOCALLENGTH)/(prediction.bounding_box.height * height)
-                        estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
-                        rotation_sum = env._self.rotation + estimated_rotation_to_enemy
+                            # Eckpunkte des Rechteck bestimmen
+                            # Rechteck zeichnen
+                            ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
+                            ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int((prediction.bounding_box.top - prediction.bounding_box.height) * height))
+                            color = (0, 0, 255)
+                            cv.rectangle(frame, ol, ur, color)
 
-                        estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                        estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                            # Berechnen der Position des Gegners
+                            estimated_distance = (650*FOCALLENGTH)/(prediction.bounding_box.height * height)
+                            estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                            rotation_sum = env._self.rotation + estimated_rotation_to_enemy
 
-                        # Hinzufügen zu Environment
-                        env.enemy.position_x = estimated_x
-                        env.enemy.position_y = estimated_y
-                        env.enemy.last_seen = t
+                            estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                            estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
 
-                        found_vector = True
+                            # Hinzufügen zu Environment
+                            env.enemy.position_x = estimated_x
+                            env.enemy.position_y = estimated_y
+                            env.enemy.last_seen = t
 
-                # Anzeige des Bildes mit Ergebnis
-                cv.imshow(window_name, frame)
+                            found_vector = True
 
-                # q Drücken zum schließen
-                key = cv.waitKey(10)
-                if key == ord('q') or key == 27:
-                    break
+            elif windows.activated == 0:
+                image = Image.open(OFF_PIC)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+                
+            # Anzeige des Bildes mit Ergebnis
+            cv.imshow(windows.capture_window_name, frame)
+
+            # q Drücken zum schließen
+            key = cv.waitKey(30)
+            if key == ord('q') or key == 27:
+                break
 
 # Offline Bildverarbeitung mit TensorFlow
 class VideoProcessingTF():
@@ -132,63 +175,68 @@ class VideoProcessingTF():
 
     # Methode zu Verarbeitung der Bilddaten von Vektor
     def detection(self, robot, env):
-        window_name = "Enemy Detection"
-        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_name, 500, 490)
+        windows = GUIHelper()
+        windows.build()
 
         while robot.camera.image_streaming_enabled():
-            # Aufnehmen des Bildes und Umwandlung in verschiedene Formate
-            t = time.time()
-            image = robot.camera.latest_image.raw_image
-            width, height = image.size
-            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
-            image = image.convert('RGB') if image.mode != 'RGB' else image
-            image = image.resize(self.input_shape)
+            if windows.activated is 1:
+                # Aufnehmen des Bildes und Umwandlung in verschiedene Formate
+                t = time.time()
+                image = robot.camera.latest_image.raw_image
+                width, height = image.size
+                image = windows.adjust_brightness_PIL(image)
 
-            # Bild wird verarbeitet
-            inputs = np.array(image, dtype=np.float32)[np.newaxis, :, :, :]
-            with tf.compat.v1.Session(graph=self.graph) as sess:
-                output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
-                outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
-                elapsed = time.time() - t
-                print("Duration: ", elapsed)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+                image = image.convert('RGB') if image.mode != 'RGB' else image
+                image = image.resize(self.input_shape)
 
-                # Ergebnisliste wird zerlegt
-                result_array = outputs.pop(0)
-                probability_array = outputs.pop(0)
+                # Bild wird verarbeitet
+                inputs = np.array(image, dtype=np.float32)[np.newaxis, :, :, :]
+                with tf.compat.v1.Session(graph=self.graph) as sess:
+                    output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
+                    outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
+                    elapsed = time.time() - t
+                    print("Duration: ", elapsed)
 
-                if probability_array[0] > 0.6:
+                    # Ergebnisliste wird zerlegt
+                    result_array = outputs.pop(0)
+                    probability_array = outputs.pop(0)
 
-                    # Eckpunkte des Rechteck bestimmen
-                    # Rechteck zeichnen
-                    result = result_array[0]
-                    ol = (int(result[0] * width), int(result[1] * height))
-                    ur = (int(result[2] * width), int(result[3] * height))
-                    color = (0, 0, 255)
-                    cv.rectangle(frame, ol, ur, color)
+                    if probability_array[0] > 0.6:
 
-                    # Berechnen der Position des Gegners
-                    enemy_width = (result[0] - result[2])
-                    enemy_height = (result[1] - result[3])
-                    estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
-                    estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
-                    rotation_sum = env.self.rotation + estimated_rotation_to_enemy
+                        # Eckpunkte des Rechteck bestimmen
+                        # Rechteck zeichnen
+                        result = result_array[0]
+                        ol = (int(result[0] * width), int(result[1] * height))
+                        ur = (int(result[2] * width), int(result[3] * height))
+                        color = (0, 0, 255)
+                        cv.rectangle(frame, ol, ur, color)
 
-                    estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                    estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                        # Berechnen der Position des Gegners
+                        enemy_width = (result[0] - result[2])
+                        enemy_height = (result[1] - result[3])
+                        estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
+                        estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
+                        rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
-                    # Hinzufügen zum Environment
-                    env.enemy.position_x = estimated_x
-                    env.enemy.position_y = estimated_y
-                    env.enemy.last_seen = t
+                        estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
+                        estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
 
-                # Bild mit Rechteck anzeigen
-                cv.imshow(window_name, frame)
+                        # Hinzufügen zum Environment
+                        env.enemy.position_x = estimated_x
+                        env.enemy.position_y = estimated_y
+                        env.enemy.last_seen = t
+            elif windows.activated == 0:
+                image = Image.open(OFF_PIC)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
 
-                # q Drücken zum schließen    
-                key = cv.waitKey(10)
-                if key == ord('q') or key == 27:
-                    break  
+            # Bild mit Rechteck anzeigen
+            cv.imshow(windows.capture_window_name, frame)
+
+            # q Drücken zum schließen    
+            key = cv.waitKey(10)
+            if key == ord('q') or key == 27:
+                break
 
             
 
@@ -215,8 +263,6 @@ class MaskWindow():
         self.activated = activated
         self.is_master = is_master
         
-        
-        
     def get_values(self):
         return (self.low_H, self.low_S, self.low_V), (self.high_H, self.high_S, self.high_V)
     
@@ -240,18 +286,17 @@ class MaskWindow():
 
     def find_ball(self, env, frame_threshold, frame, min_radius, timestamp):
         if self.activated == 1:
-            # find contours in the mask and initialize the current
-            # (x, y) center of the ball
-            cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
-                cv.CHAIN_APPROX_SIMPLE)
-            cnts = imutils.grab_contours(cnts)
+            # Finde Konturen in der Maske
+            contours = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            contours = imutils.grab_contours(contours)
+            # Initialisiere Center (x,y)
             center = None
 
             # only proceed if at least one contour was found
-            if len(cnts) > 0:
+            if len(contours) > 0:
 
                 # Größte Kontur finden
-                c = max(cnts, key=cv.contourArea)
+                c = max(contours, key=cv.contourArea)
                 ((x, y), radius) = cv.minEnclosingCircle(c)
                 M = cv.moments(c)
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
@@ -286,29 +331,28 @@ class MaskWindow():
 
     def find_goal(self, env, frame_threshold, frame, width, goal_rotation):
         if self.activated == 1:
-            cnts = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL,
-                cv.CHAIN_APPROX_SIMPLE)
-            cnts = imutils.grab_contours(cnts)
+            contours = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            contours = imutils.grab_contours(contours)
             center1 = None
             center2 = None
 
             # Nur weiter machen wenn min zwei Konturen gefunden wurden
-            if len(cnts) > 1:
+            if len(contours) > 1:
 
                 # finde die zwei größten Kreise
                 max_area = -1
                 second_max_area = -1
                 c1 = None
                 c2 = None
-                for i in range(len(cnts)):
-                    area = cv.contourArea(cnts[i])
+                for i in range(len(contours)):
+                    area = cv.contourArea(contours[i])
                     if area > max_area and second_max_area <= max_area:
                         c2 = c1
-                        c1 = cnts[i]
+                        c1 = contours[i]
                         second_max_area = max_area
                         max_area = area
                     elif area > second_max_area:
-                        c2 = cnts[i]
+                        c2 = contours[i]
                         second_max_area = area
 
                 ((x1, y1), radius1) = cv.minEnclosingCircle(c1)
