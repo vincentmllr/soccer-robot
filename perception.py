@@ -129,11 +129,11 @@ class VideoProcessingCloud():
 
                             # Berechnen der Position des Gegners
                             estimated_distance = (650*FOCALLENGTH)/(prediction.bounding_box.height * height)
-                            estimated_rotation_to_enemy = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
-                            rotation_sum = env._self.rotation + estimated_rotation_to_enemy
+                            estimated_rotation_to_enemy = (-0.5 + (prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                            rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
-                            estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                            estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                            estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                            estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
                             # Hinzufügen zu Environment
                             env.enemy.position_x = estimated_x
@@ -216,16 +216,17 @@ class VideoProcessingTF():
                         enemy_width = (result[0] - result[2])
                         enemy_height = (result[1] - result[3])
                         estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
-                        estimated_rotation_to_enemy = (0.5-(result[0] + 0.5 * enemy_width)) * -90
+                        estimated_rotation_to_enemy = (-0.5 + (result[0] + 0.5 * enemy_width)) * -90
                         rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
-                        estimated_x = env.self.position_x + (math.cos(rotation_sum) * estimated_distance)
-                        estimated_y = env.self.position_y + (math.sin(rotation_sum) * estimated_distance)
+                        estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                        estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
                         # Hinzufügen zum Environment
                         env.enemy.position_x = estimated_x
                         env.enemy.position_y = estimated_y
                         env.enemy.last_seen = t
+                        
             elif windows.activated == 0:
                 image = Image.open(OFF_PIC)
                 frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
