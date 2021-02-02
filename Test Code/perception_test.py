@@ -9,22 +9,64 @@ from azure.cognitiveservices.vision.customvision.training import CustomVisionTra
 from azure.cognitiveservices.vision.customvision.training.models import ImageFileCreateEntry, Region
 from azure.cognitiveservices.vision.customvision.prediction import CustomVisionPredictionClient
 from msrest.authentication import ApiKeyCredentials
-from PIL import Image
+from PIL import Image, ImageEnhance
 import PIL.Image
 import argparse
 import tensorflow as tf
 import numpy as np
 import cv2 as cv
 import imutils
-
-import openCV_test
-
+from PIL import *
 
 
 
-MODEL_FILENAME = 'model_s1.pb'
-LABELS_FILENAME = 'labels.txt'
+
+MODEL_FILENAME = 'other/model_s1.pb'
+LABELS_FILENAME = 'other/labels.txt'
+OFF_PIC = "other/off.JPG"
 rotation_to_ball = None
+
+class GUIHelper():
+    def __init__(self):
+        self.capture_window_name = "Enemy Detection"
+        self.trackbar_window_name = "Helligkeit"
+        self.activated_name = "On/Off"
+        self.brightness_name = "Helligkeit"
+        self.brightness = 50
+        self.activated = 1
+        
+
+    def build(self):
+        def activation_trackbar(val):
+            self.activated = val
+            cv.setTrackbarPos(self.activated_name, self.trackbar_window_name, self.activated)
+        def brightness_trackbar(val):
+            self.brightness = val
+            cv.setTrackbarPos(self.brightness_name, self.trackbar_window_name, self.brightness)
+
+        cv.namedWindow(self.capture_window_name, cv.WINDOW_NORMAL)
+        cv.namedWindow(self.trackbar_window_name, cv.WINDOW_NORMAL)
+
+        cv.resizeWindow(self.capture_window_name, 500, 490)
+        cv.resizeWindow(self.trackbar_window_name, 500, 40)
+
+        cv.createTrackbar(self.activated_name, self.trackbar_window_name, self.activated, 1, activation_trackbar)
+        cv.createTrackbar(self.brightness_name, self.trackbar_window_name, self.brightness, 200, brightness_trackbar)
+        
+    def adjust_brightness_PIL(self, image):
+        brght = (self.brightness / 100) * 2
+        enhancer = ImageEnhance.Brightness(image)
+        image_adjusted = enhancer.enhance(brght)
+        return image_adjusted
+
+        # Hilfsfunktion um Bild in Bytestrom umzuwandeln
+    def take_picture_to_byte(self, image):
+
+        with io.BytesIO() as output:
+            image.save(output, 'BMP')
+            image_as_bytes = output.getvalue()
+
+        return image_as_bytes
 
 
 # Klasse zur Bildverarbeitung online
@@ -49,59 +91,63 @@ class VideoProcessingCloud():
 
     # Bild an den Server zur Bildverarbeitung senden
     def detection(self):
-        window_name = "Enemy Detection"
-
-        cv.namedWindow(window_name, cv.WINDOW_NORMAL)
-        cv.resizeWindow(window_name, 500, 490)
+        windows = GUIHelper()
+        windows.build()
 
         while self.running:
-            t = time.time()
-            image = Image.open("img1.jpg")
-            byte_image = take_picture_to_byte(image)
-            frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+            if windows.activated is 1:
+            
+                t = time.time()
+                image = Image.open("/Users/tim/Documents/FußballProjekt/Code/fusball-3/Test Code/img1.jpg")
+                image = windows.adjust_brightness_PIL(image)
+                byte_image = take_picture_to_byte(image)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
 
-            prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
-            elapsed = time.time()-t
+                prediction_results = self.predictor.detect_image(self.project_id, self.publish_iteration_name, byte_image)
+                elapsed = time.time()-t
 
-            found_vector = False
+                found_vector = False
 
-            # Display the results.
-            for prediction in prediction_results.predictions:
-                if prediction.probability > 0.2:
-                    print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
-                        prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
+                # Display the results.
+                for prediction in prediction_results.predictions:
+                    if prediction.probability > 0.2:
+                        print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
+                            prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
 
-                # TODO Anpassen der Abstandsschätzung
-                if prediction.tag_name == 'Vector' and found_vector == False:
-                    if prediction.probability > 0.4:
+                    #TODO Anpassen der Abstandsschaetzung
+                    if prediction.tag_name == 'Vector' and found_vector == False:
+                        if prediction.probability > 0.4:
 
-                        width, height = image.size
+                            width, height = image.size
 
-                        ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
-                        ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int(max(0,(prediction.bounding_box.top + prediction.bounding_box.height)) * height))
-                        color = (0, 0, 255)
-                    
-                        cv.rectangle(frame, ol, ur, color)
-
-                        estimated_distance = (650*14.86)/prediction.bounding_box.height
-
-                        estimated_rotation = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                            ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
+                            ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int(max(0,(prediction.bounding_box.top + prediction.bounding_box.height)) * height))
+                            color = (0, 0, 255)
                         
-                        estimated_x = (math.cos(estimated_rotation) * estimated_distance)
-                        estimated_y = (math.sin(estimated_rotation) * estimated_distance)
+                            cv.rectangle(frame, ol, ur, color)
 
-                        # env.enemy.position_x = estimated_x
-                        # env.enemy.position_y = estimated_y
-                        # env.enemy._last_seen = timestamp
+                            estimated_distance = (650*14.86)/prediction.bounding_box.height
 
-                        found_vector = True
-                        print("Vector detected. Estimated position: " , estimated_x, ", ", estimated_y, ". Timestamp: ", t)
+                            estimated_rotation = (0.5-(prediction.bounding_box.left + 0.5 * prediction.bounding_box.width)) * -90
+                            
+                            estimated_x = (math.cos(estimated_rotation) * estimated_distance)
+                            estimated_y = (math.sin(estimated_rotation) * estimated_distance)
 
-                        cv.imshow(window_name, frame)
+                            # env.enemy.position_x = estimated_x
+                            # env.enemy.position_y = estimated_y
+                            # env.enemy._last_seen = timestamp
 
-                        key = cv.waitKey(30)
-                        if key == ord('q') or key == 27:
-                            break
+                            found_vector = True
+                            print("Vector detected. Estimated position: " , estimated_x, ", ", estimated_y, ". Timestamp: ", t)
+            elif windows.activated == 0:
+                image = Image.open(OFF_PIC)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+
+            cv.imshow(windows.capture_window_name, frame)
+
+            key = cv.waitKey(30)
+            if key == ord('q') or key == 27:
+                break
 
     def stop():
         self.Running = False
@@ -131,6 +177,7 @@ class VideoProcessingTF():
         window_name = "Enemy Detection"
         cv.namedWindow(window_name, cv.WINDOW_NORMAL)
         cv.resizeWindow(window_name, 500, 490)
+        
 
         while True:
             t = time.time()
@@ -166,11 +213,11 @@ class VideoProcessingTF():
 
                     cv.rectangle(frame, ol, ur, color)
 
-                cv.imshow(window_name, frame)
-                    
-                key = cv.waitKey(10)
-                if key == ord('q') or key == 27:
-                    break
+            cv.imshow(window_name, frame)
+                
+            key = cv.waitKey(10)
+            if key == ord('q') or key == 27:
+                break
 
 
 def take_picture_to_byte(image):
@@ -186,7 +233,6 @@ def detect_object(mode):
     if mode == "online":
         videoprocessor = VideoProcessingCloud()
         videoprocessor.detection()
-        print('Duration:', elapsed)
 
     elif mode == "offline":
         od_model = VideoProcessingTF(MODEL_FILENAME)
@@ -205,7 +251,7 @@ def test_perception():
         elif modus == "2":
             detect_object("online")  
         elif modus == "3":
-            openCV_test.run()
+            break
         elif modus == "4":
             break
         else:

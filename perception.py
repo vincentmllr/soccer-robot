@@ -510,8 +510,8 @@ class MaskWindow():
 
             cv.createTrackbar("Vector Camera", self.window_name, 0, 1, trackbar_camera)
             cv.createTrackbar("Ball Detection", self.window_name, 0, 1, trackbar_ball)
-            cv.createTrackbar("Goal Self", self.window_name, 0, 1, trackbar_goal_self)
-            cv.createTrackbar("Goal Enemy", self.window_name, 0, 1, trackbar_goal_enemy)
+            #cv.createTrackbar("Goal Self", self.window_name, 0, 1, trackbar_goal_self)
+            #cv.createTrackbar("Goal Enemy", self.window_name, 0, 1, trackbar_goal_enemy)
 
 
 # init_camera_feed muss davor ausführen
@@ -551,11 +551,11 @@ class VideoProcessingOpenCV():
         mask_ball = MaskWindow(self.window_detection_name_ball, 6, 104, 95, 60, 242, 195, 1, False)
         mask_ball.build_window()
 
-        mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, 0, False)
-        mask_goal.build_window()
+        #mask_goal = MaskWindow(self.window_detection_name_goal_self, 80, 130, 50, 180, 242, 195, 0, False)
+        #mask_goal.build_window()
 
-        mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, 0, False)
-        mask_goal_enemy.build_window()
+        #mask_goal_enemy = MaskWindow(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, 0, False)
+        #mask_goal_enemy.build_window()
 
 
         while robot.camera.image_streaming_enabled:
