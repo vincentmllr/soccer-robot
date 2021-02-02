@@ -3,7 +3,8 @@ import perception
 import time
 import random
 import threading
-from anki_vector.util import degrees, distance_mm, speed_mmps
+from anki_vector.util import degrees, distance_mm, speed_mmps, Angle, Pose
+
 
 x_goal_enemy = 1500
 y_goal_enemy = 500
@@ -12,24 +13,24 @@ y_goal_self = 500
 
 
 def look_for_ball(env, robot):
-    '''Vector dreht sich so lange bis er Ball gefunden hat,
-    ruft dann play_ball auf. Falls er ihn nach einer 360° Drehung
-    nicht gefunden hat, wird play_defensive() aufgerufen.
+    '''Vector dreht sich und sucht nach Ball
     '''
     print("look_for_ball()")
     ball_is_seen = env.ball.is_seen()
     degrees_turned = 0
     while not ball_is_seen and not (degrees_turned == 360):
         robot.behavior.turn_in_place(degrees(45))
+        print("turn 45")
         degrees_turned = degrees_turned + 45
         ball_is_seen = env.ball.is_seen()
+        if ball_is_seen:
+            time.sleep(0.1)
 
     if (degrees_turned == 360) and not ball_is_seen:
         print("ball not found")
         play_defensive(env, robot)
     else:
         print("ball found")
-        time.sleep(0.2)  # Verzögerung Kamera-Feed ausgleichen
         if perception.current_rotation_to_ball() is not None:
             # Vector dreht sich zum Ball
             robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
@@ -40,7 +41,7 @@ def look_for_ball(env, robot):
             if perception.current_rotation_to_ball() is not None:
                 # Vector dreht sich zum Ball
                 robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
-        time.sleep(0.2)  # Verzögerung Kamera-Feed ausgleichen
+        time.sleep(0.1)  # Verzögerung Kamera-Feed ausgleichen
         play_ball(env, robot)
 
 
@@ -48,53 +49,55 @@ def play_ball(env, robot):
     '''Entscheidet, ob Vector offensiv oder defensiv spielen soll.
     '''
     print("play_ball()")
-    if ((env.self.rotation < 80) & (env.self.rotation > -80)):
+    if ((env.self.rotation < 90) & (env.self.rotation > -90)):
         play_offensive(env, robot)
     else:
         play_defensive(env, robot)
 
 
 def play_offensive(env, robot):
-    '''Fährt zum Ball, und führt passenden Spielzug aus
+    '''Fährt zum Ball, und führt passenden Spielzug aus.
     '''
     print("play_offensive()")
     ball_is_seen = env.ball.is_seen()
-    distance_to_ball = 0.0
+    distance_to_ball = distance_average(env, robot)
     unobstructed = robot.proximity.last_sensor_reading.unobstructed
-    if not unobstructed:
-        distance_to_ball = robot.proximity.last_sensor_reading.distance.distance_mm
-        print("Distanz zu Ball: ", distance_to_ball)
-    else: # falls infrarot-abstand nicht erkannt wurde
-        # approximierte Distanz:
-        difference_x = env.self.position_x - env.ball.position_x
-        difference_y = env.self.position_y - env.ball.position_y
-        distance_to_ball = ((difference_x**2 + difference_y**2)**0.5)
+    # if not unobstructed:
+    #     distance_to_ball = robot.proximity.last_sensor_reading.distance.distance_mm
+    #     print("Distanz zu Ball: ", distance_to_ball)
+    # else:  # Falls Infrarot-Abstand nicht erkannt wurde approximierte Distanz:
+    #     difference_x = env.self.position_x - env.ball.position_x
+    #     difference_y = env.self.position_y - env.ball.position_y
+    #     distance_to_ball = ((difference_x**2 + difference_y**2)**0.5)
 
-    while ball_is_seen and (unobstructed or (distance_to_ball > 110)):  # Vector soll bis 10 cm vor dem ball gerade auf ihn zufahren
-        # abhaengig vom Abstand zum Ball fährt Vector bestimmte Distanz
-        
-        if ((distance_to_ball > 150) and ((x_goal_enemy - env.self.position_x)>150)):
-            print("ball weiter als 15cm entfernt", distance_to_ball)
-            driving_distance = -54 + 0.83 * distance_to_ball
-            if driving_distance > 400:
-                driving_distance = 400
-            if driving_distance > (x_goal_enemy - env.self.position_x): # falls vector gegen Bande fahren würde
+    while ball_is_seen and (unobstructed or (distance_to_ball > 95)):
+        # Vector soll bis 8 cm auf den Ball zufahren
+        if ((distance_to_ball > 150) and ((x_goal_enemy - env.self.position_x) > 150)):
+            print("ball weiter als 15cm entfernt: ", distance_to_ball)
+            #driving_distance = -50 + 0.83 * distance_to_ball
+            driving_distance = distance_to_ball - 50
+            if driving_distance > 500:
+                driving_distance = 500
+            if driving_distance > (x_goal_enemy - env.self.position_x):
+                 # Falls vector gegen Bande fahren würde
                 driving_distance = (x_goal_enemy - env.self.position_x) 
-            if perception.current_rotation_to_ball() is not None:
-                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
             print("driving_distance:" , driving_distance)
             robot.behavior.drive_straight(distance_mm(driving_distance), speed_mmps(500))
+            turning_angel = perception.current_rotation_to_ball()
+            if turning_angel is not None and abs(turning_angel) > 5:
+                # Vector dreht sich zum Ball
+                robot.behavior.turn_in_place(degrees(turning_angel))
                 
         else:
             print("ball weniger als 15cm entfernt", distance_to_ball)
             if perception.current_rotation_to_ball() is not None:
-                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-            driving_distance = distance_to_ball - 50
-            if driving_distance < 0:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
+            driving_distance = distance_to_ball - 75
+            if driving_distance < 19:
                 driving_distance = 0
-            robot.behavior.drive_straight(distance_mm(distance_to_ball - 80), speed_mmps(500))
+            robot.behavior.drive_straight(distance_mm(driving_distance), speed_mmps(500))
         unobstructed = robot.proximity.last_sensor_reading.unobstructed
-    
+        
         difference_x = env.self.position_x - env.ball.position_x
         difference_y = env.self.position_y - env.ball.position_y
         distance_to_ball = ((difference_x**2 + difference_y**2)**0.5)
@@ -104,182 +107,9 @@ def play_offensive(env, robot):
     ball_is_seen = env.ball.is_seen()
 
     if ball_is_seen:
-        print("Distanz zu Ball: ", distance_to_ball)
-        ball_position = get_ball_position(env, robot)
-        x_ball = ball_position[0]
-        y_ball = ball_position[1]
-        x_vector = ball_position[2]
-        y_vector = ball_position[3]
-
-        ball_in_deadspot = False
-        # Ueberpruefen, ob Ball im "toten Winkel"- Dreieck mit den Eckpunkten
-        # (1000/1000), (1500/1000) und (1500/600) liegt
-        if ((y_ball > 600) and (x_ball > 1000)):
-            if (y_ball > (-0.8 * x_ball + 1800)):
-                print("Ball im oberen Toten Winkel")
-                ball_in_deadspot = True
-
-        # Ueberpruefen, ob Ball im "toten Winkel"- Dreieck mit den Eckpunkten 
-        # (1000/0), (1500/0) und (1500/400) liegt
-        if ((y_ball < 400) and (x_ball > 1000)):
-            if (y_ball < (0.8 * x_ball - 800)):
-                print("Ball im unteren Toten Winkel")
-                ball_in_deadspot = True
-        
-        if ball_in_deadspot:
-            robot.behavior.set_lift_height(1)
-            x_vector_pos2 = x_ball - 20
-            y_vector_pos2 = 0
-            if y_ball > 600:
-                y_vector_pos2 = y_ball + 100
-            else:
-                y_vector_pos2 = y_ball - 100
-            # Vector fährt zu pos2
-            if (x_vector_pos2 > x_goal_enemy) or (y_vector_pos2 > 1000) or (y_vector_pos2 < 0):
-                # falls schussposition ausserhalb des spielfelds ist
-                shooting(env, robot)
-            else:
-                drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
-                # turning_angel = turning_angel_vector(env, x_vector, y_vector_pos2)
-                # robot.behavior.turn_in_place(degrees(turning_angel))
-                # robot.behavior.drive_straight(distance_mm(abs(y_vector - y_vector_pos2)), speed_mmps(500))
-                # turning_angel = turning_angel_vector(env, x_vector_pos2, y_vector_pos2)
-                # robot.behavior.turn_in_place(degrees(turning_angel))
-                # robot.behavior.drive_straight(distance_mm(abs(x_vector - x_vector_pos2)), speed_mmps(500))
-                turning_angel = turning_angel_vector(env, env.self.position_x, y_goal_enemy)
-                robot.behavior.turn_in_place(degrees(turning_angel))
-
-                # vector fährt mit ball vors tor
-                robot.behavior.set_lift_height(0)
-                time.sleep(0.2)
-                if perception.current_rotation_to_ball() is not None:
-                    # vector dreht sich zum Ball
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
-                time.sleep(0.2)
-                if perception.current_rotation_to_ball() is not None:
-                    # vector dreht sich zum Ball
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
-                robot.behavior.drive_straight(distance_mm(abs(env.self.position_y - y_goal_enemy-40)), speed_mmps(80))
-
-                # vector fährt zu seiner schuss-position
-                robot.behavior.drive_straight(distance_mm(-50), speed_mmps(500))
-            
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                #time.sleep(0.4) # Verzögerung Kamera-Feed ausgleichen
-                ball_position = get_ball_position(env, robot)
-                x_ball = ball_position[0]
-                y_ball = ball_position[1]
-            
-                shot_position = calculate_shot_position(env, robot, x_ball, y_ball)
-                x_vector_pos2 = shot_position[0]
-                y_vector_pos2 = shot_position[1]
-                
-                drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
-                
-                turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector zum Tor drehen muss
-                print("Turning-Angle zum Tor: ", turning_angel)
-                robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich zum Tor
-
-                time.sleep(0.1)
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                time.sleep(0.2)
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                distance_to_enemy_goal = ((env.self.position_x - x_goal_enemy)**2+(env.self.position_y - y_goal_enemy)**2)**0.5 # Abstand zu gegnerischem Tor
-
-                shooting(env, robot)
-
-        else:  # Ball nicht im toten Winkel
-            shot_position = calculate_shot_position(env, robot, x_ball, y_ball)
-            x_vector_pos2 = shot_position[0]
-            y_vector_pos2 = shot_position[1]
-            y_diffrence_pos_1_2 = abs(y_vector - y_vector_pos2)
-            if (y_vector_pos2 > (env._FIELD_LENGTH_Y-3) or y_vector_pos2 < 3):
-                # falls berechnete Position 2 des Vectors für ihn nicht erreichbar ist
-                # (ausserhalb des Spielfelds) schiesst er den Ball über Bande und
-                # dreht sich danach Richtung Tor
-                shooting(env, robot)  # Vector fährt zum Ball und schiesst
-                turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector drehen muss
-                print("Turning-Angle zum Tor: ", turning_angel)
-                robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum Tor
-
-            elif y_diffrence_pos_1_2 < 20:
-                # falls unterschied zur neuen position nicht zu groß ist, soll vector einfach schiessen
-                shooting(env, robot)  # Vector fährt zum Ball und schießt
-
-            else:  
-                # ansonsten fährt er zur berechneten Position 2 und schiesst
-                # Vector fährt von Positon 1 (aktuell) zur Position 2
-
-                drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
-
-                turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector drehen muss (Position 2)
-                print("Turning-Angle zum Tor: ", turning_angel)
-                robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich auf Position 2
-                
-                time.sleep(0.1)
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                time.sleep(0.2)
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                distance_to_enemy_goal = ((env.self.position_x - x_goal_enemy)**2+(env.self.position_y - y_goal_enemy)**2)**0.5 # Abstand zu gegnerischem Tor
-
-                if distance_to_enemy_goal > 500:
-                    # falls vector weiter als 50cm vom gegnerischen Tor entfernt ist,
-                    # soll er denn ball bis 30cm vor das tor führen und dann schiessen
-                    robot.behavior.set_lift_height(0)
-                    robot.behavior.drive_straight(distance_mm(distance_to_enemy_goal-300), speed_mmps(100))
-                    robot.behavior.drive_straight(distance_mm(-40), speed_mmps(500))
-                    ball_is_seen = env.ball.is_seen()
-                    if ball_is_seen:
-                        # vector soll eventuell schussposition neu berechnen
-                        print("Distanz zu Ball: ", distance_to_ball)
-                        ball_position = get_ball_position(env, robot)
-                        x_ball = ball_position[0]
-                        y_ball = ball_position[1]
-                        y_vector = ball_position[3]
-
-                        shot_position = calculate_shot_position(env, robot, x_ball, y_ball)
-                        x_vector_pos2 = shot_position[0]
-                        y_vector_pos2 = shot_position[1]
-                        y_diffrence_pos_1_2 = abs(y_vector - y_vector_pos2)
-                        # falls unterschied zur neuen position zu groß ist, soll vector zu neuen position fahren
-                        if y_diffrence_pos_1_2 > 20:
-                            drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
-                            turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector drehen muss (Position 2)
-                            print("Turning-Angle zum Tor: ", turning_angel)
-                            robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich zum Tor
-                            time.sleep(0.1)
-                            if perception.current_rotation_to_ball() is not None:
-                                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                            time.sleep(0.2)
-                            if perception.current_rotation_to_ball() is not None:
-                                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-          
-                shooting(env, robot)  # Vector fährt zum Ball und schießt
-
-                # vector fährt ball hinter her
-                if perception.current_rotation_to_ball() is not None:
-                    robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
-                    time.sleep(0.1)
-                ball_is_seen = env.ball.is_seen()
-                if ball_is_seen:
-                    if (x_goal_enemy - env.self.position_x) > 500:
-                        robot.behavior.drive_straight(distance_mm(200), speed_mmps(500))
-                        print("drive 200")
-                    elif (x_goal_enemy - env.self.position_x) > 400:
-                        robot.behavior.drive_straight(distance_mm(100), speed_mmps(500))
-                        print("drive 100")
-                ball_is_seen = env.ball.is_seen()
-                if ball_is_seen:
-                    play_offensive(env, robot)
-                else:
-                    robot.behavior.turn_in_place(degrees(-45))
-                # danach wird wieder look_for_ball()aufgerufen
-
+        time.sleep(0.1)
+        do_play_move(env, robot)
+       
 
 def play_defensive(env, robot):
     '''Vector fährt 5cm vor eigenes Tor und dreht sich Richtung Ball
@@ -293,9 +123,13 @@ def play_defensive(env, robot):
     turning_angel = turning_angel_vector(env, (x_goal_self), y_goal_self) # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss 
     print("Turning-Angle zum Tor: ", turning_angel)
     robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum eigenen Tor
+    time.sleep(0.3)
     ball_is_seen = env.ball.is_seen()
     rotation_to_ball = perception.current_rotation_to_ball()
-    ball_in_line = ball_is_seen and rotation_to_ball is not None
+    if rotation_to_ball is None:
+        rotation_to_ball = 90
+    print("Rotation zum Ball: ", rotation_to_ball)
+    ball_in_line = ball_is_seen and abs(rotation_to_ball) < 40
 
     while ball_in_line:   # überprüfen ob Ball im weg ist
         # approximierte Distanz:
@@ -314,7 +148,7 @@ def play_defensive(env, robot):
             if rotation_to_ball < 0: # nach links drehen
                 turning_angel = turning_angel_vector(env, (env.self.position_x), 0)
                 if turning_angel > 45:
-                    turning_angel = turning_angel -45
+                    turning_angel = turning_angel - 45
                 robot.behavior.turn_in_place(degrees(turning_angel)) 
                 robot.behavior.drive_straight(distance_mm(90), speed_mmps(500))  # Vector fährtnach links
             else:
@@ -334,7 +168,6 @@ def play_defensive(env, robot):
         else:
             ball_in_line = False
 
-
     y_vector = env.self.position_y
     x_vector = env.self.position_x
     distance_to_goal = ((y_vector - y_goal_self)**2 + (x_vector - (x_goal_self))**2)**0.5  # Strecke zwischen Vector und eigenem Tor
@@ -344,7 +177,6 @@ def play_defensive(env, robot):
     turning_angel = turning_angel_vector(env, 500, 500) 
     robot.behavior.turn_in_place(degrees(turning_angel))
     
-
     # Verteidigung im Tor:
     # Vector sucht in einem 180° Winkel vor ihm
     # findet er ihn nicht, fährt er 20cm vor und sucht analog (insgesamt 3x)
@@ -356,6 +188,11 @@ def play_defensive(env, robot):
         robot.behavior.turn_in_place(degrees(-45))
         time.sleep(0.1) # Verzögerung Kamera-Feed ausgleichen
         ball_is_seen = env.ball.is_seen()
+    else:
+        turning_angel = perception.current_rotation_to_ball()
+        if turning_angel is not None:
+                # Vector dreht sich zum Ball
+                robot.behavior.turn_in_place(degrees(turning_angel))
     i = 0
     while not ball_is_seen and (i < 3):
         
@@ -414,7 +251,7 @@ def turning_angel_vector(env, endposition_x, endposition_y):
 
 def distance_average(env, robot):
     '''Berechnung für den Abstand zum Ball,
-    basierend auf der Infrarot-Messung und der 
+    basierend auf der Infrarot-Messung und der
     approximierten Berechnung über die Kamera
     '''
     unobstructed = robot.proximity.last_sensor_reading.unobstructed
@@ -468,7 +305,7 @@ def shooting(env, robot):
             robot.behavior.set_lift_height(0.0, accel=1000.0, max_speed=1000.0, duration=0.0)
             print("shot")
             
-            time.sleep(0.4) # Ball wegrollen lassen
+            time.sleep(0.5) # Ball wegrollen lassen
 
             if perception.current_rotation_to_ball() is not None:
                 robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
@@ -500,14 +337,15 @@ def shooting(env, robot):
                 robot.behavior.set_lift_height(1.0)
                 robot.behavior.turn_in_place(degrees(360))
                 robot.behavior.turn_in_place(degrees(-360))
+                robot.behavior.turn_in_place(degrees(360))
+                robot.behavior.turn_in_place(degrees(-360))
                 robot.behavior.set_lift_height(0)
-    print("vorbei")
-    
+
+
 def get_ball_position(env, robot):
     
     print("get_ball_position")
     # Koordinaten vom Ball bestimmen
-    time.sleep(0.2) # Verzögerung Kamera-Feed ausgleichen
     if perception.current_rotation_to_ball() is not None:
         robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
     
@@ -522,17 +360,15 @@ def get_ball_position(env, robot):
     print("y-postion vektor aktuell: ", y_vector)
     print("rotation: ", env.self.rotation)
     rotation_vector = env.self.rotation
-    x_ball = x_vector + math.cos(math.radians(rotation_vector))*(distance_to_ball + 20)
-    y_ball = y_vector + math.sin(math.radians(rotation_vector))*(distance_to_ball + 20)
+    x_ball = x_vector + math.cos(math.radians(rotation_vector))*(distance_to_ball + 35)
+    y_ball = y_vector + math.sin(math.radians(rotation_vector))*(distance_to_ball + 35)
     time.sleep(0.2)
     print("Infrarot Positon Ball: x = ", x_ball, "; y = ",  y_ball)
-    # x_ball = env.ball.position_x
-    # y_ball = env.ball.position_y
-    #print("optisch position ball: x= ", x_ball, " y = ", y_ball)
     ball_position = [x_ball, y_ball, x_vector, y_vector]
     return ball_position
 
-def calculate_shot_position(env, robot, x_ball, y_ball):
+
+def calculate_shot_position(env, robot, x_ball, y_ball, distance_to_ball=70):
     # Berechnung des Richtungsvektors
     x_direction = 1
     y_direction = (y_goal_enemy - y_ball)/(x_goal_enemy - x_ball)
@@ -544,11 +380,12 @@ def calculate_shot_position(env, robot, x_ball, y_ball):
 
     # Berechnen der Koordinaten des Punktes [2] 7 cm hinter dem Ball, in
     # Verlängerung zur Schussbahn, zu dem Vector fahren soll.
-    x_vector_pos2 = -70 * x_direction_norm + x_ball
-    y_vector_pos2 = -70 * y_direction_norm + y_ball
+    x_vector_pos2 = -distance_to_ball * x_direction_norm + x_ball
+    y_vector_pos2 = -distance_to_ball * y_direction_norm + y_ball
     print("Neu brechnete Position Vector: x = ", x_vector_pos2, " y = ",y_vector_pos2)
     shot_position = [x_vector_pos2, y_vector_pos2]
     return shot_position
+
 
 def drive_to_position(env, robot, x_vector_pos2, y_vector_pos2):
     robot.behavior.set_lift_height(1)
@@ -565,6 +402,8 @@ def drive_to_position(env, robot, x_vector_pos2, y_vector_pos2):
     print("driving")
 
 def torsound(robot):
+    '''Vector spielt zufaelligen Torjubel ab
+    '''
     number = random.random() * 5
     if number > 4:
         robot.audio.stream_wav_file('audio/torsound.wav', volume=100)
@@ -577,3 +416,163 @@ def torsound(robot):
     else:
         robot.audio.stream_wav_file('audio/sieger.wav', volume=100)
 
+def do_play_move(env, robot):
+
+    ball_position = get_ball_position(env, robot)
+    x_ball = ball_position[0]
+    y_ball = ball_position[1]
+    y_vector = ball_position[3]
+
+    ball_in_deadspot = False
+    # Ueberpruefen, ob Ball im "toten Winkel"- Dreieck mit den Eckpunkten
+    # (1000/1000), (1500/1000) und (1500/600) liegt
+    if ((y_ball > 600) and (x_ball > 1000)):
+        if (y_ball > (-0.8 * x_ball + 1800)):
+            print("Ball im oberen Toten Winkel")
+            ball_in_deadspot = True
+
+    # Ueberpruefen, ob Ball im "toten Winkel"- Dreieck mit den Eckpunkten 
+    # (1000/0), (1500/0) und (1500/400) liegt
+    if ((y_ball < 400) and (x_ball > 1000)):
+        if (y_ball < (0.8 * x_ball - 800)):
+            print("Ball im unteren Toten Winkel")
+            ball_in_deadspot = True
+    
+    if ball_in_deadspot:
+        robot.behavior.set_lift_height(1)
+        x_vector_pos2 = x_ball -10
+        y_vector_pos2 = 0
+        if y_ball > 600:
+            y_vector_pos2 = y_ball + 100
+        else:
+            y_vector_pos2 = y_ball - 100
+        # Vector fährt zu pos2
+        if (x_vector_pos2 > x_goal_enemy) or (y_vector_pos2 > 960) or (y_vector_pos2 < 40):
+            # falls schussposition ausserhalb des spielfelds ist
+            shooting(env, robot)
+        else:
+            drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
+            if y_vector_pos2 > 500:
+                pose = Pose(x=x_vector_pos2-env._POSITION_START_X, y= y_vector_pos2 - env._POSITION_START_Y, z= 0, angle_z = Angle(degrees = -90))
+            else:
+                pose = Pose(x=x_vector_pos2-env._POSITION_START_X, y= y_vector_pos2 - env._POSITION_START_Y, z= 0, angle_z = Angle(degrees = 90))
+            #robot.behavior.go_to_pose(pose)
+            # turning_angel = turning_angel_vector(env, x_vector, y_vector_pos2)
+            # robot.behavior.turn_in_place(degrees(turning_angel))
+            # robot.behavior.drive_straight(distance_mm(abs(y_vector - y_vector_pos2)), speed_mmps(500))
+            # turning_angel = turning_angel_vector(env, x_vector_pos2, y_vector_pos2)
+            # robot.behavior.turn_in_place(degrees(turning_angel))
+            # robot.behavior.drive_straight(distance_mm(abs(x_vector - x_vector_pos2)), speed_mmps(500))
+
+            turning_angel = turning_angel_vector(env, env.self.position_x, y_goal_enemy)
+            robot.behavior.turn_in_place(degrees(turning_angel))
+
+            # vector fährt mit ball vors tor
+            robot.behavior.set_lift_height(0)
+            time.sleep(0.1)
+            if perception.current_rotation_to_ball() is not None:
+                # vector dreht sich zum Ball
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
+            time.sleep(0.1)
+            # if perception.current_rotation_to_ball() is not None:
+            #     # vector dreht sich zum Ball
+            #     robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball()))
+            robot.behavior.drive_straight(distance_mm(abs(env.self.position_y - y_goal_enemy-40)), speed_mmps(80))
+
+            # vector fährt zu seiner schuss-position
+            robot.behavior.drive_straight(distance_mm(-50), speed_mmps(500))
+        
+            if perception.current_rotation_to_ball() is not None:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+            time.sleep(0.1)
+            ball_position = get_ball_position(env, robot)
+            x_ball = ball_position[0]
+            y_ball = ball_position[1]
+        
+            shot_position = calculate_shot_position(env, robot, x_ball, y_ball, distance_to_ball=80)
+            x_vector_pos2 = shot_position[0]
+            y_vector_pos2 = shot_position[1]
+            
+            drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
+            
+            turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector zum Tor drehen muss
+            print("Turning-Angle zum Tor: ", turning_angel)
+            robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich zum Tor
+
+            time.sleep(0.1)
+            if perception.current_rotation_to_ball() is not None:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+            time.sleep(0.2)
+            if perception.current_rotation_to_ball() is not None:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+            distance_to_enemy_goal = ((env.self.position_x - x_goal_enemy)**2+(env.self.position_y - y_goal_enemy)**2)**0.5 # Abstand zu gegnerischem Tor
+
+            shooting(env, robot)
+
+    else:  # Ball nicht im toten Winkel
+        shot_position = calculate_shot_position(env, robot, x_ball, y_ball)
+        x_vector_pos2 = shot_position[0]
+        y_vector_pos2 = shot_position[1]
+        y_diffrence_pos_1_2 = abs(y_vector - y_vector_pos2)
+        
+        if (y_vector_pos2 > (env._FIELD_LENGTH_Y-50) or y_vector_pos2 < 50):
+            # berechnete Position 2 fuer Vector nicht erreichbar, Schuss ueber Bande
+            shooting(env, robot)  
+            turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) 
+            robot.behavior.turn_in_place(degrees(turning_angel)) # Vector dreht sich zum Tor
+
+        elif y_diffrence_pos_1_2 < 20:
+            # Unterschied zur neuen Position nicht zu groß, Vector soll einfach schiessen
+            shooting(env, robot)  
+
+        else:  
+            # Vector faehrt er zur berechneten Position 2 und schiesst
+            drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
+            # Berechenen des Winkels um den sich Vector drehen muss (Position 2):
+            turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) 
+            # Vector dreht sich auf Position 2:
+            robot.behavior.turn_in_place(degrees(turning_angel))
+            
+            time.sleep(0.1)
+            if perception.current_rotation_to_ball() is not None:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+            time.sleep(0.2)
+            if perception.current_rotation_to_ball() is not None:
+                robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+            distance_to_enemy_goal = ((env.self.position_x - x_goal_enemy)**2+(env.self.position_y - y_goal_enemy)**2)**0.5 # Abstand zu gegnerischem Tor
+
+            if distance_to_enemy_goal > 500:
+                # falls vector weiter als 50cm vom gegnerischen Tor entfernt ist,
+                # soll er denn ball bis 40cm vor das tor führen und dann schiessen
+                robot.behavior.set_lift_height(0)
+                robot.behavior.drive_straight(distance_mm(distance_to_enemy_goal-400), speed_mmps(100))
+                robot.behavior.drive_straight(distance_mm(-40), speed_mmps(500))
+                ball_is_seen = env.ball.is_seen()
+                if ball_is_seen:
+                    # vector soll eventuell schussposition neu berechnen
+                    time.sleep(0.2)
+                    ball_position = get_ball_position(env, robot)
+                    x_ball = ball_position[0]
+                    y_ball = ball_position[1]
+                    y_vector = ball_position[3]
+
+                    shot_position = calculate_shot_position(env, robot, x_ball, y_ball)
+                    x_vector_pos2 = shot_position[0]
+                    y_vector_pos2 = shot_position[1]
+                    y_diffrence_pos_1_2 = abs(y_vector - y_vector_pos2)
+                    # falls unterschied zur neuen position zu groß ist, soll vector zu neuen position fahren
+                    if y_diffrence_pos_1_2 > 20:
+                        drive_to_position(env, robot, x_vector_pos2, y_vector_pos2)
+                        turning_angel = turning_angel_vector(env, x_goal_enemy, y_goal_enemy) # Berechenen des Winkels um den sich Vector drehen muss (Position 2)
+                        print("Turning-Angle zum Tor: ", turning_angel)
+                        robot.behavior.turn_in_place(degrees(turning_angel))  # Vector dreht sich zum Tor
+                        time.sleep(0.1)
+                        if perception.current_rotation_to_ball() is not None:
+                            robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+                        time.sleep(0.2)
+                        if perception.current_rotation_to_ball() is not None:
+                            robot.behavior.turn_in_place(degrees(perception.current_rotation_to_ball())) # vector dreht sich zum Ball
+        
+            shooting(env, robot)  # Vector fährt zum Ball und schießt
+
+    
