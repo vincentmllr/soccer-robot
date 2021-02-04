@@ -82,7 +82,7 @@ class VideoProcessingCloud():
         self.prediction_key = "a9f0177e6df54a63a7d6cc9477c383f9"
         self.prediction_resource_id = "/subscriptions/f6e54442-3d5a-4083-ad0d-080f159ac33d/resourceGroups/Vision/providers/Microsoft.CognitiveServices/accounts/Vector"
         self.project_id = "d2693bf6-e18a-414f-bdba-2851847b43a0"
-        self.publish_iteration_name = "Iteration6"
+        self.publish_iteration_name = "Iteration7"
 
         self.prediction_credentials = ApiKeyCredentials(in_headers={"Prediction-key": self.prediction_key})
         self.predictor = CustomVisionPredictionClient(self.ENDPOINT, self.prediction_credentials)
@@ -98,8 +98,8 @@ class VideoProcessingCloud():
                 # Bild wird aufgenommen und vorbereitet
                 t = time.time()
                 image = robot.camera.latest_image.raw_image
-                width, height = image.size
                 image = windows.adjust_brightness_PIL(image)
+                
 
                 byte_image = windows.take_picture_to_byte(image)
                 frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
@@ -119,11 +119,12 @@ class VideoProcessingCloud():
                     # Filtern der Ergebnisse
                     if prediction.tag_name == 'Vector' and found_vector == False:
                         if prediction.probability > 0.4:
+                            width, height = image.size
 
                             # Eckpunkte des Rechteck bestimmen
                             # Rechteck zeichnen
                             ol = (int(prediction.bounding_box.left * width), int(prediction.bounding_box.top * height))
-                            ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int((prediction.bounding_box.top - prediction.bounding_box.height) * height))
+                            ur = (int((prediction.bounding_box.left + prediction.bounding_box.width) * width), int((prediction.bounding_box.top + prediction.bounding_box.height) * height))
                             color = (0, 0, 255)
                             cv.rectangle(frame, ol, ur, color)
 
@@ -579,13 +580,15 @@ class VideoProcessingOpenCV():
             min_radius = cv.getTrackbarPos("Minimum Radius", self.window_detection_name_ball)
 
             mask_ball.find_ball(env, frame_threshold_ball, frame, min_radius, timestamp)
-            mask_goal.find_goal(env, frame_threshold_goal_self, frame, width, 180)
-            mask_goal_enemy.find_goal(env, frame_threshold_goal_enemy, frame, width, 0)
+            #mask_goal.find_goal(env, frame_threshold_goal_self, frame, width, 180)
+            #mask_goal_enemy.find_goal(env, frame_threshold_goal_enemy, frame, width, 0)
 
             show_window_camera = cv.getTrackbarPos("Vector Camera", self.window_master_name)
             show_window_ball = cv.getTrackbarPos("Ball Detection", self.window_master_name)
-            show_window_goal_self = cv.getTrackbarPos("Goal Self", self.window_master_name)
-            show_window_goal_enemy = cv.getTrackbarPos("Goal Enemy", self.window_master_name)
+            show_window_goal_self = 0
+            #show_window_goal_self = cv.getTrackbarPos("Goal Self", self.window_master_name)
+            show_window_goal_enemy = 0
+            #show_window_goal_enemy = cv.getTrackbarPos("Goal Enemy", self.window_master_name)
 
             if show_window_camera == 1 and exist_camera == True:
                 cv.imshow(self.window_capture_name, frame)
