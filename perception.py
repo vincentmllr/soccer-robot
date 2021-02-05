@@ -32,10 +32,10 @@ class GUIHelper():
     def __init__(self):
         self.capture_window_name = "Enemy Detection"
         self.trackbar_window_name = "Helligkeit"
-        self.activated_name = "On/Off"
+        self.activated_name = "Off/On"
         self.brightness_name = "Helligkeit"
         self.brightness = 50
-        self.activated = 1
+        self.activated = 0
         
 
     def build(self):
@@ -198,35 +198,48 @@ class VideoProcessingTF():
                     outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
                     elapsed = time.time() - t
                     print("Duration: ", elapsed)
+                    outputs_copy = outputs
 
                     # Ergebnisliste wird zerlegt
                     result_array = outputs.pop(0)
                     probability_array = outputs.pop(0)
 
-                    if probability_array[0] > 0.6:
+                    with open(LABELS_FILENAME) as f:
+                        labels = [l.strip() for l in f.readlines()]
+                    i = 0
 
-                        # Eckpunkte des Rechteck bestimmen
-                        # Rechteck zeichnen
-                        result = result_array[0]
-                        ol = (int(result[0] * width), int(result[1] * height))
-                        ur = (int(result[2] * width), int(result[3] * height))
-                        color = (0, 0, 255)
-                        cv.rectangle(frame, ol, ur, color)
+                    for pred in zip(*outputs):
+                        print(f"Class: {labels[pred[2]]}, Probability: {pred[1]}, Bounding box: {pred[0]}")
 
-                        # Berechnen der Position des Gegners
-                        enemy_width = (result[0] - result[2])
-                        enemy_height = (result[1] - result[3])
-                        estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
-                        estimated_rotation_to_enemy = (-0.5 + (result[0] + 0.5 * enemy_width)) * -90
-                        rotation_sum = env.self.rotation + estimated_rotation_to_enemy
 
-                        estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
-                        estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
+                        if probability_array[i] > 0.6 and labels[pred[2]] == "Vector":
 
-                        # Hinzufügen zum Environment
-                        env.enemy.position_x = estimated_x
-                        env.enemy.position_y = estimated_y
-                        env.enemy.last_seen = t
+                            # Eckpunkte des Rechteck bestimmen
+                            # Rechteck zeichnen
+                            result = result_array[i]
+                            ol = (int(result[0] * width), int(result[1] * height))
+                            ur = (int(result[2] * width), int(result[3] * height))
+                            color = (0, 0, 255)
+                            cv.rectangle(frame, ol, ur, color)
+
+                            # Berechnen der Position des Gegners
+                            enemy_width = (result[0] - result[2])
+                            enemy_height = (result[1] - result[3])
+                            estimated_distance = (650*FOCALLENGTH)/(enemy_height * height)
+                            estimated_rotation_to_enemy = (-0.5 + (result[0] + 0.5 * enemy_width)) * -90
+                            rotation_sum = env.self.rotation + estimated_rotation_to_enemy
+
+                            estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
+                            estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
+
+                            # Hinzufügen zum Environment
+                            env.enemy.position_x = estimated_x
+                            env.enemy.position_y = estimated_y
+                            env.enemy.last_seen = t
+                        
+                        elif probability_array[0] < 0.4:
+                            break
+                        i = i+1
                         
             elif windows.activated == 0:
                 image = Image.open(OFF_PIC)
@@ -390,9 +403,9 @@ class MaskWindow():
 
                     # Winkel aus Dreieck mit Markerpunkten und Kamera
                     pre_alpha = ((dist_a ** 2) - (dist_b ** 2) - (dist_c ** 2)) / (-2 * dist_b * dist_c)
-                    alpha = math.acos(self.round_to_interval(pre_alpha))
+                    alpha = math.acos(math.radians((pre_alpha)))
                     pre_beta = ((dist_b ** 2) - (dist_a ** 2) - (dist_c ** 2)) / (-2 * dist_a * dist_c)
-                    beta = math.acos(self.round_to_interval(pre_beta))
+                    beta = math.acos(math.radians((pre_beta)))
                     delta = 180 - beta
                     epsilon = 180 - alpha
 
@@ -401,34 +414,34 @@ class MaskWindow():
                         rotation_to_goal = (goal_x - 320)/640 * -90
                         env.self.angle_to_goal_self = rotation_to_goal
                         if dist_a < dist_b:
-                            x_self = (math.sin(delta) * dist_a) 
+                            x_self = (math.sin(math.radians(delta)) * dist_a) 
                             if beta > 90:
-                                y_self = 400 - (math.cos(delta) * dist_a)
+                                y_self = 400 - (math.cos(math.radians(delta)) * dist_a)
                             elif beta < 90:
-                                y_self = 400 + (math.cos(beta) * dist_a)
+                                y_self = 400 + (math.cos(math.radians(beta)) * dist_a)
                         elif dist_b < dist_a:
-                            x_self = (math.sin(epsilon) * dist_b)
+                            x_self = (math.sin(math.radians(epsilon)) * dist_b)
                             if alpha > 90:
-                                y_self = 600 + (math.cos(delta) * dist_b)
+                                y_self = 600 + (math.cos(math.radians(delta)) * dist_b)
                             elif alpha < 90:
-                                y_self = 600 - (math.cos(beta) * dist_b)
+                                y_self = 600 - (math.cos(math.radians(beta)) * dist_b)
 
                     elif goal_rotation == 0:
                         goal_x = x1 + ((x2 - x1)/2)
                         rotation_to_goal = (goal_x - 320)/640 * -90
                         env.self.angle_to_goal_enemy = rotation_to_goal
                         if dist_a < dist_b:
-                            x_self = 1600 - (math.sin(delta) * dist_a)
+                            x_self = 1600 - (math.sin(math.radians(delta)) * dist_a)
                             if beta > 90:
-                                y_self = 600 + (math.cos(delta) * dist_a)
+                                y_self = 600 + (math.cos(math.radians(delta)) * dist_a)
                             elif beta < 90:
-                                y_self = 600 - (math.cos(beta) * dist_a)
+                                y_self = 600 - (math.cos(math.radians(beta)) * dist_a)
                         elif dist_b < dist_a:
-                            x_self = 1600 - (math.sin(epsilon) * dist_b)
+                            x_self = 1600 - (math.sin(math.radians(epsilon)) * dist_b)
                             if alpha > 90:
-                                y_self = 400 - (math.cos(delta) * dist_b)
+                                y_self = 400 - (math.cos(math.radians(delta)) * dist_b)
                             elif alpha < 90:
-                                y_self = 400 + (math.cos(beta) * dist_b)   
+                                y_self = 400 + (math.cos(math.radians(beta)) * dist_b)   
                     
                     else:
                         env.self.angle_to_goal_self = None
@@ -436,7 +449,7 @@ class MaskWindow():
 
                     #env._self.position_x(x_self)
                     #env._self.position_y(y_self)
-                    #env._self.rotation(vector_rotation)
+                    #env._self.rotation((vector_rotation))
 
     def build_window(self):
 
@@ -574,8 +587,8 @@ class VideoProcessingOpenCV():
 
             # Maske erstellen
             frame_threshold_ball = mask_ball.preprocess(frame_HSV)
-            frame_threshold_goal_self = mask_goal.preprocess(frame_HSV)
-            frame_threshold_goal_enemy = mask_goal_enemy.preprocess(frame_HSV)
+            #frame_threshold_goal_self = mask_goal.preprocess(frame_HSV)
+            #frame_threshold_goal_enemy = mask_goal_enemy.preprocess(frame_HSV)
 
             min_radius = cv.getTrackbarPos("Minimum Radius", self.window_detection_name_ball)
 

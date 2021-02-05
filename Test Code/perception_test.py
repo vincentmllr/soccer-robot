@@ -98,7 +98,7 @@ class VideoProcessingCloud():
             if windows.activated is 1:
             
                 t = time.time()
-                image = Image.open("/Users/tim/Documents/FußballProjekt/Code/fusball-3/Test Code/img1.jpg")
+                image = Image.open("/Users/tim/Documents/FußballProjekt/Code/fusball-3/Test Code/img2.jpg")
                 image = windows.adjust_brightness_PIL(image)
                 byte_image = take_picture_to_byte(image)
                 frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
@@ -181,7 +181,7 @@ class VideoProcessingTF():
 
         while True:
             t = time.time()
-            image = Image.open("img1.jpg")
+            image = Image.open("/Users/tim/Documents/FußballProjekt/Code/fusball-3/Test Code/img2.jpg")
 
             width, height = image.size
             frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
