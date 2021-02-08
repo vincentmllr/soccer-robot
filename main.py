@@ -20,11 +20,10 @@ IP_TIM = "192.168.178.47"
 NAME_TIM = "Vector-C9F7"
 SERIAL_TIM = "009009e9"
 
-global ball_in_goal
 
-  
+
 def main():
-
+    
     robot = anki_vector.Robot(serial=SERIAL)
     robot.connect()
     #  robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
@@ -35,7 +34,7 @@ def main():
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
-                                  position_start_x=300.0,
+                                  position_start_x=750.0,
                                   position_start_y=500.0)
 
     detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
@@ -45,23 +44,25 @@ def main():
     print("detect_ball()")
     robot.camera.init_camera_feed()
     detect_ball_Thread.start()  # Start der Ballerkennung als Thread
-    # detect_enemy_Thread.start()
-    # print("Zum Starten des Enviroment Viewers Enter drücken")
-    # input()
-    # robot.behavior.set_head_angle(degrees(0))
-    # env.environment_viewer.start()
-    # print("x-postion anfang: ", env.self.position_x, "y-postion anfang: ", env.self.position_y, "Rotation Vector: ", env.self.rotation)
-    # print()
+    #detect_enemy_Thread.start()
+    print("Zum Starten des Enviroment Viewers Enter drücken")
+    input()
+    robot.behavior.set_head_angle(degrees(0))
+    env.environment_viewer.start()
+    print("x-postion anfang: ", env.self.position_x, "y-postion anfang: ", env.self.position_y, "Rotation Vector: ", env.self.rotation)
+    print()
+    # robot.behavior.turn_in_place(degrees(90))
+    # robot.behavior.drive_straight(distance_mm(300),speed_mmps(500))
+    # robot.behavior.turn_in_place(degrees(-90))
     print("Zum Starten des Spiels Enter drücken")
     input()
     robot.behavior.set_head_angle(degrees(0))
     robot.behavior.set_lift_height(0)
     print("ANPFIFF")
-    ball_in_goal = False
-    while not ball_in_goal:
 
+    while True:
         action.look_for_ball(env, robot)
-
+        
     robot.disconnect()
 
 
@@ -69,7 +70,7 @@ def test():
 
     robot = anki_vector.Robot(serial=SERIAL)
     robot.connect()
-    robot.behavior.set_eye_color(0.05, 1.0)  # Augenfarbe orange
+    robot.behavior.set_eye_color(0.57, 1.0)  # Augenfarbe sapphire
 
     env = environment.Environment(robot,
                                   field_length_x=1500.0,
@@ -100,24 +101,12 @@ def test():
     robot.behavior.set_lift_height(0)
     print("ANPFIFF")
     running = True
-    robot.behavior.turn_in_place(degrees(90))
-    robot.behavior.drive_straight(distance_mm(400),speed_mmps(500))
-    robot.behavior.turn_in_place(degrees(-65))
-    print(env.self.rotation)
-    while running:
-        
-        #action.look_for_ball(env, robot)
-        #action.shooting(env, robot)
-        print(action.distance_average(env, robot))
+    while True:
+        print(env.ball.is_seen())
         time.sleep(0.5)
-        #print("zum abbrechen 0 drücken")
-        # i = input()
-        # if i == "0":
-        #     running = False
-
     robot.disconnect()
      
 
 if __name__ == "__main__":
-    main()
-    #test()
+    #main()
+    test() 
