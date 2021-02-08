@@ -288,7 +288,7 @@ class CVHelper():
         self.max_value = 255
         self.min_radius = 10
 
-        self.detection_activated_name = "Detection Off/On"
+        self.activated_name = "Detection Off/On"
         self.data_activated_name = "Data Transmission Off/On"
         self.low_H_name = "Low H"
         self.low_S_name = "Low S"
@@ -331,6 +331,7 @@ class CVHelper():
             # Finde Konturen in der Maske
             contours = cv.findContours(frame_threshold.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
             contours = imutils.grab_contours(contours)
+
             # Initialisiere Center (x,y)
             center = None
 
