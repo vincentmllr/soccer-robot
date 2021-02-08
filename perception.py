@@ -537,7 +537,7 @@ class CVHelper():
             cv.createTrackbar(self.activated_name, self.window_name, self.activated, 1, activation_trackbar)
 
             if self.window_name == "Goal Self" or "Goal Enemy":
-                cv.createTrackbar(self.data_activated_name, self.window_name, self.data_activated)
+                cv.createTrackbar(self.data_activated_name, self.window_name, self.data_activated, 1, data_trackbar)
 
             cv.createTrackbar(self.low_H_name, self.window_name, self.low_H, self.max_value_H, on_low_H_thresh_trackbar)
             cv.createTrackbar(self.high_H_name, self.window_name, self.high_H, self.max_value_H, on_high_H_thresh_trackbar)
