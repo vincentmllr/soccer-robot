@@ -3,6 +3,7 @@ import time
 from anki_vector.connection import ControlPriorityLevel
 from anki_vector.util import degrees, Pose
 from anki_vector import behavior
+from numpy.lib.function_base import median
 import pygame
 # from pygame.constants import K_0
 from pygame.locals import Rect, QUIT
@@ -58,13 +59,13 @@ class Environment():
                                         self._POSITION_START_Y,
                                         180.0, 0, self, 0.0, 180.0)
         self._goal_self = EnvironmentObject('Goal_self',
-                                            0,
+                                            self._GOAL_WIDTH,
                                             self._GOAL_WIDTH,
                                             0,
                                             self._POSITION_START_Y,
                                             0.0, 0, self)
         self._goal_enemy = EnvironmentObject('Goal_enemy',
-                                             0,
+                                             self._GOAL_WIDTH,
                                              self._GOAL_WIDTH,
                                              self._FIELD_LENGTH_X,
                                              self._POSITION_START_Y,
@@ -73,6 +74,8 @@ class Environment():
         self._environment_viewer = threading.Thread(target=self._viewer.show)
         self._offset_x = 0
         self._offset_y = 0
+        self._offset_rotation = 0
+        self._ball_in_goal = False
 
     def environment_objects(self):
         '''Returns a list of all the objects on the map in the following order:
@@ -81,18 +84,40 @@ class Environment():
         return [self.self, self._ball, self._enemy,
                 self._goal_enemy, self._goal_self]
 
+    def rotate_point(ox, oy, px, py, angle):
+        '''
+        Rotate a point counterclockwise by a given angle around a given origin.
+        The angle should be given in radians. In Cartesian plane.
+        '''
+        qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+        qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+        return qx, qy
+
     @property
     def self(self):
+        '''Returns self and get recent position from Vectors map transformed with offsets  
+        '''
         if self._robot is None:
             return self._self
         else:
-            position_x = self._robot.pose.to_matrix().pos_xyz[0]
-            position_y = self._robot.pose.to_matrix().pos_xyz[1]
-            rotation = self._robot.pose_angle_rad / math.pi * 180.0 
-            self._self.position_x = position_x + self._POSITION_START_X + self.offset_x
-            self._self.position_y = position_y + self._POSITION_START_Y + self.offset_y
-            self._self.rotation = rotation
-            self._self.last_seen = time.time()
+            position_robot_x = self._robot.pose.to_matrix().pos_xyz[0]
+            position_robot_y = self._robot.pose.to_matrix().pos_xyz[1]
+            rotation = self._robot.pose_angle_rad / math.pi * 180.0
+            position_x = position_robot_x + self._POSITION_START_X + self.offset_x
+            position_y = position_robot_y + self._POSITION_START_Y + self.offset_y
+            rotation_offset_rad = self.offset_rotation / 180 * math.pi
+            #Rotate with rotation offset
+            ox=self.field_length_y/2
+            oy=self.field_length_x/2
+            px=position_y
+            py=position_x
+            angle=rotation_offset_rad
+            qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+            qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+            self._self.position_y = qx
+            self._self.position_x = qy
+            self._self.rotation = rotation + self.offset_rotation
+            self._self.last_seen = int(time.time())
             return self._self
 
     @property
@@ -143,8 +168,26 @@ class Environment():
     def offset_y(self, offset_y):
         self._offset_y = offset_y
 
+    @property
+    def offset_rotation(self):
+        return self._offset_rotation
+
+    @offset_rotation.setter
+    def offset_rotation(self, offset_rotation):
+        self._offset_rotation = offset_rotation
+
+    @property
+    def ball_in_goal(self):
+        return self._ball_in_goal
+    
+    @ball_in_goal.setter
+    def ball_in_goal(self, ball_in_goal):
+        self._ball_in_goal = ball_in_goal
+
 
 class EnvironmentObject():
+    '''Objects in the Environment like enemy, goals and the ball
+    '''
 
     def __init__(self, tag, size_x, size_y, position_x, position_y,
                  rotation, last_seen, environment, angle_to_goal_self=0.0,
@@ -162,6 +205,7 @@ class EnvironmentObject():
         self._angle_to_ball = angle_to_ball
         self._last_known_positions_x = {}
         self._last_known_positions_y = {}
+        self._last_known_rotations = {}
 
     def pose(self):
         if self._tag == 'Self':
@@ -183,14 +227,14 @@ class EnvironmentObject():
                         angle_z=anki_vector.util.Angle(degrees=0))
 
     def _was_seen_recently(self, now):
-        time_threshold_recently = 0.5  # in Sekunden
+        time_threshold_recently = 2  # in Sekunden
         if (self._last_seen + time_threshold_recently) - now >= 0:
             return True
         else:
             return False
 
     def is_seen(self):
-        now = time.time()
+        now = int(time.time())
         return self._was_seen_recently(now)
 
     @property
@@ -227,6 +271,10 @@ class EnvironmentObject():
 
     @rotation.setter
     def rotation(self, rotation):
+        if rotation > 180:
+            rotation = rotation - 360
+        elif rotation < -180:
+            rotation = rotation + 360
         self._rotation = rotation
 
     @property
@@ -240,11 +288,13 @@ class EnvironmentObject():
         and deletes the position 10 seconds ago.
         '''
         self._last_seen = int(last_seen)
-        self.last_known_positions_x.update({last_seen: self.position_x})
-        self.last_known_positions_y.update({last_seen: self.position_y})
+        self.last_known_positions_x.update({int(last_seen): self.position_x})
+        self.last_known_positions_y.update({int(last_seen): self.position_y})
+        self.last_known_rotations.update({int(last_seen): self.rotation})
         time_threshold = 10
-        self.last_known_positions_x.pop(last_seen-time_threshold, 'empty_msg')
-        self.last_known_positions_y.pop(last_seen-time_threshold, 'empty_msg')
+        self.last_known_positions_x.pop(int(last_seen)-time_threshold, 'empty_msg')
+        self.last_known_positions_y.pop(int(last_seen)-time_threshold, 'empty_msg')
+        self.last_known_rotations.pop(int(last_seen)-time_threshold, 'empty_msg')
 
     @property
     def environment(self):
@@ -281,15 +331,21 @@ class EnvironmentObject():
     @property
     def last_known_positions_y(self):
         return self._last_known_positions_y
+    
+    @property
+    def last_known_rotations(self):
+        return self._last_known_rotations
 
 
 class EnvironmentViewer:
 
     def __init__(self, environment):
         self._environment = environment
+        self._start_time = time.time()
 
     def scale(self, value):
-        # TODO Automatisch als Prozent des Displays skalieren
+        '''Scales variables of the environment so they fit a screen with a constant factor.
+        '''
         return int(value/3)
 
     def draw_field(self, window,
@@ -302,6 +358,8 @@ class EnvironmentViewer:
                    color_field,
                    color_line,
                    color_goal):
+        '''Draws the field on the window
+        '''
 
         goal_area_width = self.scale(300)
         goal_area_height = self.scale(150)
@@ -366,6 +424,9 @@ class EnvironmentViewer:
 
     def png_rotation_offset_x(self, png_rotation,
                               png_width, png_length, rotation_center_x):
+        '''Calculates the offset in x direction for a rotation of a png. Necessary,
+        because pygame creates a box around the  rotated png and draws it at the upper left corner.
+        '''
         rotation_rad = png_rotation/180*math.pi
         rotation_center_y = png_length - rotation_center_x
         if png_rotation == 0 or png_rotation == 360:
@@ -394,6 +455,9 @@ class EnvironmentViewer:
 
     def png_rotation_offset_y(self, png_rotation,
                               png_width, png_length, rotation_center_x):
+        '''Calculates the offset in y direction for a rotation of a png. Necessary,
+        because pygame creates a box around the  rotated png and draws it at the upper left corner.
+        '''
         rotation_rad = png_rotation/180*math.pi
         rotation_center_y = png_length - rotation_center_x
         if png_rotation == 0 or png_rotation == 360:
@@ -422,6 +486,8 @@ class EnvironmentViewer:
 
     def blit_environment_object(self, object, window, png_width, png_length,
                                 png_center_x, rotation_png_list, edge=0):
+        '''Draws environment objects on the window as pngs.
+        '''
         position_x = self.scale(object.position_x)
         position_y = self.scale(object.position_y)
         if object is self._environment.ball:
@@ -439,22 +505,29 @@ class EnvironmentViewer:
         png = rotation_png_list[rotation]
         if (object == self._environment.ball) or (object == self._environment.enemy):
             now = int(time.time())
-            last_seen = object.last_seen
+            start_time = int(self._start_time)
+            last_seen = int(object.last_seen)
             if last_seen == 0:
-                opacity = 255
+                seconds_past_start = now - start_time
+                if seconds_past_start <= 10:
+                    opacity = 255 * (1 - seconds_past_start/10)
+                else:
+                    opacity = 0 
             elif (now-last_seen) <= 10:
                 opacity = int((1-(now-last_seen)/(10))*255)
             else:
                 opacity = 0
             png.set_alpha(opacity)
             if last_seen != 0:
-                position_x = object.last_known_positions_x.get(last_seen, position_x) # TODO überprüfen ob es funktioniert
-                position_y = object.last_known_positions_y.get(last_seen, position_y)
+                position_x = self.scale(object.last_known_positions_x.get(last_seen, position_x))
+                position_y = self.scale(object.last_known_positions_y.get(last_seen, position_y))  
         window.blit(png, (position_y + png_rotation_offset_y + edge,
                           position_x + png_rotation_offset_x + edge))   
 
     def draw_environment_object(self, object, color,
                                 size_x, size_y, window, edge=0):
+        '''Draws environment objects with simple pygame shapes.
+        '''
         position_x = self.scale(object.position_x)
         position_y = self.scale(object.position_y)
         if object.tag == 'Ball':
@@ -465,26 +538,33 @@ class EnvironmentViewer:
                                 size_x/2)
 
     def object_identical(self, object_position_x, object_position_y,
-                         environment_object):
+                         environment_object, edge):
         '''Returns whether one object is identical to an
         EnvrionmentObject using both objects position
         and the last positions of the environment object
         '''
         object_identical = False
         now = int(time.time())
-        threshold_distance_x = self.scale(environment_object.size_x)*2
-        threshold_distance_y = self.scale(environment_object.size_y)*2
+        threshold_distance_x = self.scale(environment_object.size_x)*4
+        threshold_distance_y = self.scale(environment_object.size_y)*4
         last_known_positions_x = environment_object.last_known_positions_x
         last_known_positions_y = environment_object.last_known_positions_y
         for moment in range(now, now-10, -1):
             if last_known_positions_x.get(moment, False) is not False:
-                environment_object_position_x = self.scale(last_known_positions_x[moment])
-                environment_object_position_y = self.scale(last_known_positions_y[moment])
+                environment_object_position_x = self.scale(last_known_positions_x[moment])+edge
+                environment_object_position_y = self.scale(last_known_positions_y[moment])+edge
                 if (object_position_x >= environment_object_position_x-threshold_distance_x
                     and object_position_x <= environment_object_position_x+threshold_distance_x
                     and object_position_y >= environment_object_position_y-threshold_distance_y
                     and object_position_y <= environment_object_position_y+threshold_distance_y):
                     object_identical = True
+        environment_object_position_x = self.scale(environment_object.position_x)+edge
+        environment_object_position_y = self.scale(environment_object.position_y)+edge
+        if (object_position_x >= environment_object_position_x-threshold_distance_x
+            and object_position_x <= environment_object_position_x+threshold_distance_x
+            and object_position_y >= environment_object_position_y-threshold_distance_y
+            and object_position_y <= environment_object_position_y+threshold_distance_y):
+            object_identical = True
         return object_identical
 
     def robot_picked_up(self, robot, origin_id):
@@ -493,63 +573,87 @@ class EnvironmentViewer:
         else:
             return False
 
-    def object_is_environment_object(self, object_position_y, object_position_x, ball, enemy, goal_self, goal_enemy):
-        object_is_ball = self.object_identical(object_position_x, object_position_y, ball)
-        object_is_enemy = self.object_identical(object_position_x, object_position_y, enemy)
-        object_is_goal_self = self.object_identical(object_position_x, object_position_y, goal_self)
-        object_is_goal_enemy = self.object_identical(object_position_x, object_position_y, goal_enemy)
+    def object_is_environment_object(self, object_position_y, object_position_x, ball, enemy, goal_self, goal_enemy, edge):
+        '''Returns wether an object is probably an environment object 
+        '''
+        object_is_ball = self.object_identical(object_position_x, object_position_y, ball, edge)
+        object_is_enemy = self.object_identical(object_position_x, object_position_y, enemy, edge)
+        object_is_goal_self = self.object_identical(object_position_x, object_position_y, goal_self, edge)
+        object_is_goal_enemy = self.object_identical(object_position_x, object_position_y, goal_enemy, edge)
         return (object_is_ball
                 or object_is_enemy
                 or object_is_goal_self
                 or object_is_goal_enemy)
 
     def object_close_to_wall(self, object_position_x, object_position_y, window_height, window_width):
+        '''Returns whether an object is close to the walls.
+        '''
         return ((object_position_x <= window_height*0.35 or object_position_x >= window_height*0.65)
                 and (object_position_y <= window_width*0.35 or object_position_y >= window_width*0.65))
 
-    def translate_environment(self, object_position_y, object_position_x):
-        distance_to_wall_north = self.scale(self._environment.field_length_x) - object_position_x
-        distance_to_wall_south = object_position_x
-        distance_to_wall_east = object_position_y
-        distance_to_wall_west = self.scale(self._environment.field_length_y) - object_position_y
+    def distances_to_walls(self, y, x, absolut, edge):
+        '''Returns a list of distances to all four walls
+        '''
+        distance_to_wall_north = self.scale(self._environment.field_length_x) - edge - x
+        distance_to_wall_south = x - edge
+        distance_to_wall_east = y - edge
+        distance_to_wall_west = self.scale(self._environment.field_length_y) - edge - y
+        if absolut:
+            return [abs(distance_to_wall_north), abs(distance_to_wall_south), abs(distance_to_wall_east), abs(distance_to_wall_west)]
+        else:
+            return [distance_to_wall_north, distance_to_wall_south, distance_to_wall_east, distance_to_wall_west]
+       
+    def translate_environment(self, object_position_y, object_position_x, edge):
+        '''Translate environment by comparing a found object with the closest wall.
+        '''
+        distance_to_wall_north = self.scale(self._environment.field_length_x) - edge - object_position_x
+        distance_to_wall_south = object_position_x - edge
+        distance_to_wall_east = object_position_y - edge
+        distance_to_wall_west = self.scale(self._environment.field_length_y) - object_position_y - edge
         distances_to_walls = (distance_to_wall_north, distance_to_wall_south, distance_to_wall_east, distance_to_wall_west)
-        if min(distances_to_walls) == distance_to_wall_north:
+        abs_distances_to_walls = (abs(distance_to_wall_north), abs(distance_to_wall_south), abs(distance_to_wall_east), abs(distance_to_wall_west))
+        minimum_distance = min(abs_distances_to_walls)
+        if abs_distances_to_walls.index(minimum_distance) == 0:
             self._environment.offset_x = distance_to_wall_north*3
             print(f"x um {distance_to_wall_north*3} verschoben.")
-        if min(distances_to_walls) == distance_to_wall_south:
+        if abs_distances_to_walls.index(minimum_distance) == 1:
             self._environment.offset_x = -distance_to_wall_south*3
             print(f"x um {-distance_to_wall_south*3} verschoben.")
-        if min(distances_to_walls) == distance_to_wall_west:
-            self._environment.offset_y = distance_to_wall_west*3
-            print(f"y um {distance_to_wall_west*3} verschoben.")
-        if min(distances_to_walls) == distance_to_wall_east:
+        if abs_distances_to_walls.index(minimum_distance) == 2:
             self._environment.offset_y = -distance_to_wall_east*3
             print(f"y um {-distance_to_wall_east*3} verschoben.")
+        if abs_distances_to_walls.index(minimum_distance) == 3:
+            self._environment.offset_y = distance_to_wall_west*3
+            print(f"y um {distance_to_wall_west*3} verschoben.")
 
     def translate_observed_points(self, object_position_y, object_position_x, observed_points):
+        '''Translate the observed points by comparing to the closest walls.
+        '''
         distance_to_wall_north = self.scale(self._environment.field_length_x) - object_position_x
         distance_to_wall_south = object_position_x
         distance_to_wall_east = object_position_y
         distance_to_wall_west = self.scale(self._environment.field_length_y) - object_position_y
         distances_to_walls = (distance_to_wall_north, distance_to_wall_south, distance_to_wall_east, distance_to_wall_west) 
+        abs_distances_to_walls = (abs(distance_to_wall_north), abs(distance_to_wall_south), abs(distance_to_wall_east), abs(distance_to_wall_west))
+        minimum_distance = min(abs_distances_to_walls)
         observed_points_y = []
         observed_points_x = []
         observed_points_new = []
         for points in observed_points:
             observed_points_y.append(points[0])
             observed_points_x.append(points[1])
-        if min(distances_to_walls) == distance_to_wall_north:
+        if abs_distances_to_walls.index(minimum_distance) == 0:
             for i in range(0, len(observed_points)):
                 observed_points_new.append((observed_points_y[i], observed_points_x[i]+distance_to_wall_north))
-        if min(distances_to_walls) == distance_to_wall_south:
+        if abs_distances_to_walls.index(minimum_distance) == 1:
             for i in range(0, len(observed_points)):
                 observed_points_new.append((observed_points_y[i], observed_points_x[i]-distance_to_wall_south))
-        if min(distances_to_walls) == distance_to_wall_west:
-            for i in range(0, len(observed_points)):
-                observed_points_new.append((observed_points_y[i]+distance_to_wall_west, observed_points_x[i]))
-        if min(distances_to_walls) == distance_to_wall_east:
+        if abs_distances_to_walls.index(minimum_distance) == 2:
             for i in range(0, len(observed_points)):
                 observed_points_new.append((observed_points_y[i]-distance_to_wall_east, observed_points_x[i]))
+        if abs_distances_to_walls.index(minimum_distance) == 3:
+            for i in range(0, len(observed_points)):
+                observed_points_new.append((observed_points_y[i]+distance_to_wall_west, observed_points_x[i]))
         return observed_points_new
         # distance_to_wall_north = self.scale(self._environment.field_length_x) - object_position_x
         # distance_to_wall_south = object_position_x
@@ -585,7 +689,9 @@ class EnvironmentViewer:
         # observed_points = observed_points_new
 
     def delete_repetetive_points(self, point_list):
-        threshold = 5
+        '''Deletes points of a list that are closer than a specific threshold.
+        '''
+        threshold = 30
         for point_a in point_list:
             for point_b in point_list:
                 if point_a != point_b:
@@ -593,7 +699,36 @@ class EnvironmentViewer:
                         point_list.remove(point_b)
         return point_list
 
+    def angle_between_vectors(self, vector_a, vector_b):
+        '''Returns the angle between two 2D vectors.
+        '''
+        a_1 = vector_a[0]
+        a_2 = vector_a[1]
+        b_1 = vector_b[0]
+        b_2 = vector_b[1]
+        a_length = math.sqrt(a_1*a_1+a_2*a_2)
+        b_length = math.sqrt(b_1*b_1+b_2*b_2) 
+        cos_alpha = (a_1*b_1+a_2*b_2)/(a_length*b_length)
+        angle = math.degrees(math.acos(cos_alpha))
+        if math.isnan(angle):
+            return 0
+        else:
+            return angle 
+
+    def vector_is_turning(self):
+        '''Returns whether vector is turning by checking how his rotation changed in the last second.
+        '''
+        now = int(time.time())
+        vector = self._environment.self
+        if abs(vector.last_known_rotations.get(now, 0) - vector.last_known_rotations.get(now-1, 0)) > 10:
+            return True
+        else:
+            return False
+
     def show(self, show_self=True, show_ball=True, show_enemy=True, automatic_map_transformation=False):
+        '''Shows the environment viewer window, draws the environment objects
+        and does the automatic map transformation if activated.
+        '''
         GREY_DARK = (20, 20, 20)
         GREY_MEDIUM = (40, 40, 40)
         GREY_LIGHT = (50, 50, 50)
@@ -637,9 +772,7 @@ class EnvironmentViewer:
         ball_png_list = []
         for angle in range(0, 361, 1):
             ball_png_list.append(ball_png)
-
-        # Edge detection
-        suspicious_points = []
+        
         observed_points = []
         observed_points_from_one_line = []
         observed_lines = []
@@ -648,7 +781,6 @@ class EnvironmentViewer:
         goal_self = self._environment.goal_self
         goal_enemy = self._environment.goal_enemy
         observing_line = False
-        # Edge detection
 
         if robot is None:
             origin_id = 0
@@ -670,10 +802,12 @@ class EnvironmentViewer:
                 if event.type == QUIT:
                     quit = True
 
+            
             self.draw_field(window, window_height, window_width,
                             edge, line_thickness, goal_size_y, GREY_DARK,
                             GREY_MEDIUM, GREY_LIGHT, GREY_MEDIUM)
-            
+
+
             robot_self = self._environment.self
             if show_self:
                 self.blit_environment_object(robot_self, window,
@@ -684,9 +818,6 @@ class EnvironmentViewer:
 
             ball = self._environment.ball
             if show_ball:
-                # self.draw_environment_object(ball, ORANGE,
-                #                              ball_size_x, ball_size_x,
-                #                              window, edge)
                 self.blit_environment_object(ball, window,
                                              ball_png_width,
                                              ball_png_length,
@@ -701,10 +832,9 @@ class EnvironmentViewer:
                                              robot_png_center_x,
                                              robot_png_list, edge)
 
-            if automatic_map_transformation == True:
-                # Edge detection
-                self_position_x = self.scale(robot_self.position_x)
-                self_position_y = self.scale(robot_self.position_y)    
+            if automatic_map_transformation is True:
+                self_position_x = self.scale(robot_self.position_x) + edge
+                self_position_y = self.scale(robot_self.position_y) + edge   
                 self_rotation_rad = round(robot_self.rotation) / 180 * math.pi
                 # Find objects
                 if robot is not None:
@@ -713,47 +843,27 @@ class EnvironmentViewer:
                         object_distance = self.scale(proximity_data.distance.distance_mm)
                         object_position_x = self_position_x + object_distance * math.cos(self_rotation_rad)
                         object_position_y = self_position_y + object_distance * math.sin(self_rotation_rad)
-                        object_is_environment_object = self.object_is_environment_object(object_position_x, object_position_y, ball, robot_enemy, goal_self, goal_enemy)
+                        object_is_environment_object = self.object_is_environment_object(object_position_y, object_position_x, ball, robot_enemy, goal_self, goal_enemy, edge)
                         object_is_wall = not object_is_environment_object
                         if object_is_wall:
-                            object_close_to_wall = self.object_close_to_wall(object_position_x, object_position_y, window_height, window_width)
-                            if not object_close_to_wall:
-                                observed_points.append((object_position_y, object_position_x))
-                            else:
-                                observed_points.append((object_position_y, object_position_x))
-                                self.translate_environment(object_position_y, object_position_x)
-                                observed_points = self.translate_observed_points(object_position_y, object_position_x, observed_points)
-                            if observing_line:  # OR if vector is turning right now
+                            observed_points.append((object_position_y, object_position_x))
+                            observed_points.append((object_position_y, object_position_x))
+                            if observing_line:
                                 observed_points_from_one_line.append((object_position_y, object_position_x))
-                            else:
+                            elif self.vector_is_turning:
                                 observed_points_from_one_line.append((object_position_y, object_position_x))
-                                seconds_left_to_observe_line = 3
+                                seconds_left_to_observe_line = 1
                                 frames_left_to_observe_one_line = seconds_left_to_observe_line * frames_per_second
                                 observing_line = True
                 # Filter data
-                observed_points = self.delete_repetetive_points(observed_points)
-                # Choose more than 10 points that form a line
-                # minimum_points_for_line = 10
-                # if len(observed_points) > 5:
-                #     pass
-                # choose points so that
-                # either the x value is alternating not much and the y value is (standarderror)
-                # for i in range(1,100):
-                #     points_picked = []
-                #     points_picked.append(points_observed[])
-                # if standard_error_x < 10 and standard_error_y > 10
-                # or the y value is alternating not much and the x value is
-                # if line_points_# wenn punkte aus
-                # len(observed_points) > 5: # if there are enough points to form a line, that have a specific distance
-                    # PSEUDOCODE
-                    # if len(suspicious_points) > 5 and suspicious_points_form-line:
-                    #     if distance to next wall is close_to_wall_if_map_is_turned:
-                    #         turn.map(estimated rotation)
-                # Look for lines
+                observed_points_from_one_line = self.delete_repetetive_points(observed_points_from_one_line)
+                # Find lines
                 if frames_left_to_observe_one_line == 0 and observing_line:
-                    print('Finished observing points.')
-                    if len(observed_points_from_one_line >= 5):
-                        print('Enough points observed!')
+                    for point in observed_points_from_one_line:
+                        point_is_environment_object = self.object_is_environment_object(point[0], point[1], ball, robot_enemy, goal_self, goal_enemy, edge)
+                        if point_is_environment_object:
+                            observed_points_from_one_line.remove(point)
+                    if len(observed_points_from_one_line) >= 5:
                         line_points_x = []
                         line_points_y = []
                         for point in observed_points_from_one_line:
@@ -763,20 +873,73 @@ class EnvironmentViewer:
                         # y = intercept + x * slope
                         new_line = ((0 * slope + intercept, 0),
                                     (window_height * slope + intercept, window_height))
-                        observed_points_from_one_line.clear()
                         observed_lines.append(new_line)
+                        # Find Angle and Distance to nearest wall
+                        new_line_vector = (new_line[1][0]-new_line[0][0], new_line[1][1]-new_line[0][1])
+                        observed_points_from_one_line_y = []
+                        for point in observed_points_from_one_line:
+                            observed_points_from_one_line_y.append(point[0])
+                        if (len(observed_points_from_one_line_y) % 2 == 0):
+                            observed_points_from_one_line_y.pop(-1)
+                        median_y_observed_points = median(observed_points_from_one_line_y)
+                        median_y_index = observed_points_from_one_line_y.index(median_y_observed_points)
+                        median_point = observed_points_from_one_line[median_y_index]
+                        abs_distances_to_walls = self.distances_to_walls(median_point[0], median_point[1], absolut=True, edge=edge)
+                        minimum_distance_wall_index = abs_distances_to_walls.index(min(abs_distances_to_walls))
+                        distances_to_walls = self.distances_to_walls(median_point[0], median_point[1], absolut=False, edge=edge)
+                        distance_to_nearest_wall = distances_to_walls[minimum_distance_wall_index]
+                        nearest_wall_vector = (0,0)
+                        next_wall = ''
+                        if minimum_distance_wall_index == 0:
+                            next_wall = 'north'
+                        if minimum_distance_wall_index == 1:
+                            next_wall = 'south'
+                        if minimum_distance_wall_index == 2:
+                            next_wall = 'east'
+                        if minimum_distance_wall_index == 3:
+                            next_wall = 'west'
+                        if next_wall == 'north' or next_wall == 'south':
+                            nearest_wall_vector = (0,1)
+                        elif next_wall == 'east' or next_wall == 'west':
+                            nearest_wall_vector = (1,0)
+                        # Rotate map with angle between wall and line
+                        angle_between_line_and_wall = self.angle_between_vectors(new_line_vector, nearest_wall_vector)
+                        if angle_between_line_and_wall != 0:
+                            rotation_offset = 0.0
+                            factor = 1
+                            if next_wall == 'north' or next_wall == 'south':
+                                if slope > 0:
+                                    factor = -1
+                                elif slope < 0:
+                                    factor = 1
+                            if next_wall == 'east' or next_wall == 'west':
+                                if slope > 0: 
+                                    factor = 1
+                                elif slope < 0:
+                                    factor = -1
+                            rotation_offset = factor * angle_between_line_and_wall
+                            self._environment.offset_rotation = rotation_offset
+                            observed_lines.clear()
+                            observed_points_from_one_line.clear()
+                            observed_points.clear()
+                        # Translate with median point
+                        self.translate_environment(median_point[0], median_point[1], edge)
+                    observed_points_from_one_line.clear()
                     observing_line = False
-                    # found line is a regression of found points (some threshold needed and something to determine which point belongs to which line)
-                    # Remember the last two lines that have an angle close to 90 degrees
-                    if frames_left_to_observe_one_line != 0:
-                        frames_left_to_observe_one_line -= 1
-                    # print(f'Objekt gefunden {proximity_data.distance.distance_mm}mm vor Vector.')
-            
-            for line in observed_lines:
-                pygame.draw.line(window, WHITE, (line[0][0]+edge, line[0][1]+edge), (line[1][0]+edge, line[1][1]+edge), 1)
-            for point in observed_points:
-                pygame.draw.circle(window, BLACK, (point[0]+edge, point[1]+edge), 3)
-            # Edge detection
+                if frames_left_to_observe_one_line != 0:
+                    frames_left_to_observe_one_line -= 1
+                last_seen_lines = []
+                if len(observed_lines) >= 4:
+                    last_seen_lines = [observed_lines[-1], observed_lines[-2], observed_lines[-3], observed_lines[-4]]
+                else:
+                    for line in observed_lines:
+                        last_seen_lines.append(line)
+                for line in last_seen_lines:
+                    pygame.draw.line(window, WHITE, (line[0][0], line[0][1]), (line[1][0], line[1][1]), 1)
+                for point in observed_points:
+                    pygame.draw.circle(window, BLACK, (point[0], point[1]), 3)
+                for point in observed_points_from_one_line:
+                    pygame.draw.circle(window, WHITE, (point[0], point[1]), 3)
 
             if self.robot_picked_up(robot, origin_id):
                     origin_id += 1
@@ -786,6 +949,7 @@ class EnvironmentViewer:
                     self._environment.offset_y = 0
                     observed_points.clear()
                     observed_lines.clear()
+                    observed_points_from_one_line.clear()
                     robot_self.last_known_positions_x.clear()
                     robot_self.last_known_positions_y.clear()
                     robot_enemy.last_known_positions_x.clear()
