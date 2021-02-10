@@ -103,7 +103,7 @@ def play_offensive(env, robot):
 
 
 def play_defensive(env, robot):
-    '''Vector fährt 5cm vor eigenes Tor und dreht sich Richtung Ball
+    '''Vector faehrt vor eigenes Tor und dreht sich Richtung Ball
     '''
     print("play_defensive()")
     # Berechnen des Winkel um den sich Vector zum eigenen Tor drehen muss:
@@ -345,6 +345,8 @@ def shooting(env, robot):
             print("ball_x: ", env.ball.position_x)
             # Torjubel nach geschossenem Tor:
             if env.ball.position_x > x_goal_enemy:
+                env.ball_in_goal = True
+                print("TOOOOOOOOOOOOOOR!!!")
                 torsoundThread = threading.Thread(target=torsound, args=[robot])
                 torsoundThread.start()
                 robot.behavior.set_lift_height(1.0)
