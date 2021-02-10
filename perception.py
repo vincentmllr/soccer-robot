@@ -62,7 +62,7 @@ class GUIHelper():
         cv.resizeWindow(self.capture_window_name, 500, 490)
         cv.resizeWindow(self.trackbar_window_name, 500, 40)
 
-        cv.createTrackbar(self.camer_on_name, self.trackbar_window_name, self.camera_on, 1, activation_trackbar)
+        cv.createTrackbar(self.camera_on_name, self.trackbar_window_name, self.camera_on, 1, activation_trackbar)
         cv.createTrackbar(self.activated_name, self.trackbar_window_name, self.activated, 1, activation_trackbar)
         cv.createTrackbar(self.brightness_name, self.trackbar_window_name, self.brightness, 200, brightness_trackbar)
 
