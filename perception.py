@@ -130,9 +130,6 @@ class VideoProcessingCloud():
 
                 # Anzeigen der Ergebnisse
                 for prediction in prediction_results.predictions:
-                    if prediction.probability > 0.2:
-                        print("\t" + prediction.tag_name + ": {0:.2f}% bbox.left = {1:.2f}, bbox.top = {2:.2f}, bbox.width = {3:.2f}, bbox.height = {4:.2f}".format(
-                            prediction.probability * 100, prediction.bounding_box.left, prediction.bounding_box.top, prediction.bounding_box.width, prediction.bounding_box.height))
 
                     # Filtern der Ergebnisse
                     if prediction.tag_name == 'Vector' and found_vector == False:
@@ -214,7 +211,7 @@ class VideoProcessingTF():
                     output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
                     outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
                     elapsed = time.time() - t
-                    print("Duration: ", elapsed)
+
                     outputs_copy = outputs
 
                     # Ergebnisliste wird zerlegt
@@ -226,8 +223,6 @@ class VideoProcessingTF():
                     i = 0
 
                     for pred in zip(*outputs):
-                        print(f"Class: {labels[pred[2]]}, Probability: {pred[1]}, Bounding box: {pred[0]}")
-
 
                         if probability_array[i] > 0.6 and labels[pred[2]] == "Vector":
 
