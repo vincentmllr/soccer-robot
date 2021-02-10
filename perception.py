@@ -104,7 +104,7 @@ class VideoProcessingCloud():
         # Fenster wird erstellt
         windows = GUIHelper()
         windows.build()
-        
+
         global run
         while robot.camera.image_streaming_enabled() and run:
 
@@ -735,6 +735,7 @@ def detect_openCV(robot, env):
 def stop():
     global run
     run = False
+    time.sleep(1)
 
 
 # Winkel zwischen Vector und Ball zurückgeben
