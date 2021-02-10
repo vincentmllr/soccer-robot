@@ -57,6 +57,7 @@ def main():
     while not env.ball_in_goal:
         action.look_for_ball(env, robot)
     print("ABPFIFF")   
+    perception.stop()
     robot.disconnect()
 
 

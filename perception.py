@@ -27,6 +27,7 @@ LABELS_FILENAME = "other/labels.txt"
 OFF_PIC = "other/off.JPG"
 FOCALLENGTH = 14.86
 rotation_to_ball = None
+run = True
 
 
 class GUIHelper():
@@ -103,9 +104,15 @@ class VideoProcessingCloud():
         # Fenster wird erstellt
         windows = GUIHelper()
         windows.build()
+        
+        global run
+        while robot.camera.image_streaming_enabled() and run:
 
-        while robot.camera.image_streaming_enabled():
-            if windows.camera_on == 1:
+            if windows.camera_on == 0:
+                image = Image.open(OFF_PIC)
+                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
+
+            elif windows.camera_on == 1:
 
                 # Bild wird aufgenommen und vorbereitet
                 t = time.time()
@@ -153,10 +160,6 @@ class VideoProcessingCloud():
                                 env.enemy.position_y = estimated_y
                                 env.enemy.last_seen = t
 
-            elif windows.camera_on == 0:
-                image = Image.open(OFF_PIC)
-                frame = cv.cvtColor(np.array(image), cv.COLOR_RGB2BGR)
-
             # Anzeige des Bildes mit Ergebnis
             cv.imshow(windows.capture_window_name, frame)
 
@@ -190,7 +193,8 @@ class VideoProcessingTF():
         windows = GUIHelper()
         windows.build()
 
-        while robot.camera.image_streaming_enabled():
+        global run
+        while robot.camera.image_streaming_enabled() and run:
             if windows.camera_on == 1:
 
                 # Aufnehmen des Bildes und Umwandlung
@@ -617,8 +621,8 @@ class VideoProcessingOpenCV():
         mask_goal_enemy = CVHelper(self.window_detection_name_goal_enemy, 50, 20, 60, 100, 130, 140, 0, False)
         mask_goal_enemy.build_window()
 
-
-        while robot.camera.image_streaming_enabled:
+        global run
+        while robot.camera.image_streaming_enabled and run:
 
             # Bild aufnehmen und umwandeln
             timestamp = time.time()
@@ -722,9 +726,16 @@ def detect_enemy(robot, env, mode):
 
 # Aktivieren der Ball und Markererkennung
 def detect_openCV(robot, env):
+
     robot.camera.init_camera_feed()
     bt = VideoProcessingOpenCV()
     bt.start_tracking(robot, env)
+
+# Methode zum stoppen aller Funktionen
+def stop():
+    global run
+    run = False
+
 
 # Winkel zwischen Vector und Ball zurückgeben
 def current_rotation_to_ball():
