@@ -223,7 +223,8 @@ class VideoProcessingTF():
                     i = 0
 
                     for pred in zip(*outputs):
-                        print("Pred1: ", pred[1], " Pred2: ", pred[2])
+                        print(pred)
+                        print(len(pred))
 
                         if pred[1] > 0.6 and pred[2] == 1:
 
