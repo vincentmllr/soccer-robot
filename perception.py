@@ -211,26 +211,15 @@ class VideoProcessingTF():
                     output_tensors = [sess.graph.get_tensor_by_name(n) for n in self.OUTPUT_TENSOR_NAMES]
                     outputs = sess.run(output_tensors, {self.INPUT_TENSOR_NAME: inputs})
                     elapsed = time.time() - t
-
-                    outputs_copy = outputs
-
-                    # Ergebnisliste wird zerlegt
-                    result_array = outputs.pop(0)
-                    probability_array = outputs.pop(0)
-
-                    with open(LABELS_FILENAME) as f:
-                        labels = [l.strip() for l in f.readlines()]
-                    i = 0
-
+                    
+                    vector_found = False
                     for pred in zip(*outputs):
-                        print(pred)
-                        print(len(pred))
 
-                        if pred[1] > 0.6 and pred[2] == 1:
+                        if pred[1] > 0.6 and pred[2] == 1 and vector_found == False:
 
                             # Eckpunkte des Rechteck bestimmen
                             # Rechteck zeichnen
-                            result = result_array[i]
+                            result = pred[0]
                             ol = (int(result[0] * width), int(result[1] * height))
                             ur = (int(result[2] * width), int(result[3] * height))
                             color = (0, 0, 255)
@@ -246,15 +235,16 @@ class VideoProcessingTF():
                             estimated_x = env.self.position_x + (math.cos(math.radians(rotation_sum)) * estimated_distance)
                             estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
+                            vector_found = True
+
                             # Hinzufügen zum Environment
                             if windows.activated == 1:
                                 env.enemy.position_x = estimated_x
                                 env.enemy.position_y = estimated_y
                                 env.enemy.last_seen = t
 
-                        elif pred[1] < 0.4:
+                        elif pred[1] < 0.4 or vector_found == True:
                             break
-                        i = i+1
 
             elif windows.camera_on == 0:
                 image = Image.open(OFF_PIC)
