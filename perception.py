@@ -223,8 +223,9 @@ class VideoProcessingTF():
                     i = 0
 
                     for pred in zip(*outputs):
+                        print("Pred1: ", pred[1], " Pred2: ", pred[2])
 
-                        if probability_array[i] > 0.6 and labels[pred[2]] == "Vector":
+                        if pred[1] > 0.6 and pred[2] == 1:
 
                             # Eckpunkte des Rechteck bestimmen
                             # Rechteck zeichnen
@@ -245,12 +246,12 @@ class VideoProcessingTF():
                             estimated_y = env.self.position_y + (math.sin(math.radians(rotation_sum)) * estimated_distance)
 
                             # Hinzufügen zum Environment
-                            if wondows.activated == 1:
+                            if windows.activated == 1:
                                 env.enemy.position_x = estimated_x
                                 env.enemy.position_y = estimated_y
                                 env.enemy.last_seen = t
 
-                        elif probability_array[i] < 0.4:
+                        elif pred[1] < 0.4:
                             break
                         i = i+1
 
