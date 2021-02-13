@@ -1,7 +1,59 @@
-Anleitung:
+# Robot Lewandowski
 
-1. requirements.txt installieren
-2. Main Methode ausführen
-3. Vector auf Startpunktsetzen
-4. Anleitung des Programms befolgen
+Software for Anki Vector to play soccer.
 
+## Getting Started
+
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+
+### Prerequisites
+
+Python 3.7
+
+### Soccerfield Dimensions
+
+- 1000 mm x 1500 mm
+- Goal width: 200 mm
+- Start Position: 
+
+
+### Installing
+
+To install all additional modules needed
+
+```
+pip install -r requirements.txt
+```
+
+## Running the tests
+
+The individual modules can be tested by running them directly.
+
+## Deployment
+
+1. run main.py
+2. Activate the desired functions in the submenus (e.g. ball detection, marker detection)
+3. Adjust the HSV color range for your lighting situation
+4. Put Vector on its start position
+5. Press enter to start the game
+
+## Built With
+
+* [OpenCV](https://github.com/opencv/opencv) - Used to detect the ball
+* [Azure Custom Vision](https://docs.microsoft.com/de-de/azure/cognitive-services/custom-vision-service/) - Used to detect opponent Vectors
+* [Pygame](https://github.com/pygame/) - Used for the map
+* [Anki Vector API](https://developer.anki.com/vector/docs/index.html) - Used to send commands to Vector
+
+
+## Authors
+
+* **Vincent Müller** 
+* **Philipp Binder** 
+* **Tim Fischer** 
+
+
+## Acknowledgments
+
+* Hat tip to anyone whose code was used
+* Inspiration
+* etc
