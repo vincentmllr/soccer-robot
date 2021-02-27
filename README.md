@@ -32,10 +32,11 @@ The individual modules can be tested by running them directly.
 ## Deployment
 
 1. run main.py
-2. Activate the desired functions in the submenus (e.g. ball detection, marker detection)
-3. Adjust the HSV color range for your lighting situation
-4. Put Vector on its start position
-5. Press enter to start the game
+2. Put Vector on its start position
+3. Activate the desired functions in the submenus (e.g. ball detection, marker detection)
+4. Adjust the HSV color range for your lighting situation
+5. Press enter to start the EnvironmentViewer
+5. Press enter again to start the game
 
 ## Built With
 
@@ -50,10 +51,3 @@ The individual modules can be tested by running them directly.
 * **Vincent Müller** 
 * **Philipp Binder** 
 * **Tim Fischer** 
-
-
-## Acknowledgments
-
-* Hat tip to anyone whose code was used
-* Inspiration
-* etc
