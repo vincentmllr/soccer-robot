@@ -14,7 +14,7 @@ Python 3.7
 
 - 1000 mm x 1500 mm
 - Goal width: 200 mm
-- Start Position: 
+- Start Position: x: 500; y: 500
 
 
 ### Installing

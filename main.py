@@ -1,11 +1,9 @@
 import anki_vector
-from anki_vector import behavior, connection
+#from anki_vector import behavior, connection
 from anki_vector.util import *
-from anki_vector.connection import ControlPriorityLevel
-import time
 import threading
 import tkinter
-
+import time
 import perception
 import action
 import environment
@@ -19,7 +17,7 @@ SERIAL_VINCENT = '00804ea0'
 
 
 def main():
-   
+
     robot = anki_vector.Robot(serial=SERIAL)
     robot.connect()
     robot.behavior.set_eye_color(0.57, 1.0)  # Augenfarbe sapphire
@@ -29,7 +27,7 @@ def main():
                                   field_length_y=1000.0,
                                   goal_width=200.0,
                                   ball_diameter=40.0,
-                                  position_start_x=1400.0,
+                                  position_start_x=500.0,
                                   position_start_y=500.0)
 
     detect_ball_Thread = threading.Thread(target=perception.detect_openCV, args=[robot, env])
@@ -40,23 +38,25 @@ def main():
     robot.camera.init_camera_feed()
     detect_ball_Thread.start()  # Start der Ballerkennung als Thread
     detect_enemy_Thread.start()
+
     print("Zum Starten des Enviroment Viewers Enter drücken")
     input()
-
     robot.behavior.set_head_angle(degrees(0))
     env.environment_viewer.start()
     print("x-postion anfang: ", env.self.position_x, "y-postion anfang: ", env.self.position_y, "Rotation Vector: ", env.self.rotation)
     print()
+
     print("Zum Starten des Spiels Enter drücken")
     input()
-    
+
     robot.behavior.set_head_angle(degrees(0))
     robot.behavior.set_lift_height(0)
     print("ANPFIFF")
 
     while not env.ball_in_goal:
         action.look_for_ball(env, robot)
-    print("ABPFIFF")   
+
+    print("ABPFIFF")
     perception.stop()
     robot.disconnect()
 

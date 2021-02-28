@@ -458,7 +458,7 @@ def do_play_move(env, robot):
 
     if ball_in_deadspot:
         robot.behavior.set_lift_height(1)
-        x_vector_pos2 = x_ball - 20
+        x_vector_pos2 = x_ball
         y_vector_pos2 = 0
         if y_ball > 600:
             y_vector_pos2 = y_ball + 100

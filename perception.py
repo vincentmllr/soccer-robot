@@ -11,8 +11,6 @@ from azure.cognitiveservices.vision.customvision.training.models import ImageFil
 from azure.cognitiveservices.vision.customvision.prediction import CustomVisionPredictionClient
 from msrest.authentication import ApiKeyCredentials
 from PIL import Image, ImageEnhance
-import PIL.Image
-import argparse
 import tensorflow as tf
 import numpy as np
 import cv2 as cv
