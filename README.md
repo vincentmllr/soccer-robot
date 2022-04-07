@@ -1,3 +1,7 @@
+# Disclaimer
+This project was imported from the KIT GitLab and was created in a team of three students in a seminar. My main part was the python class Environment.
+You can find the original project under https://git.scc.kit.edu/von-bis/seminare/programmieren-3/2020/fusball-3.
+
 # Robot Lewandowski
 
 Software for Anki Vector to play soccer.
